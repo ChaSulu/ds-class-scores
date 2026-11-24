@@ -1,0 +1,16 @@
+name: Publish class rankings
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - uses: w7s-io/w7s-cloud@b2beaa290a5c7975698e4677a03f8b0289896274
