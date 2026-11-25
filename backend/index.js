@@ -43,8 +43,24 @@ async function hydrate(db, room, input) {
 async function manage(request, db) {
   if (request.method!=='POST') return adminError('method',405);
   if (!/^[\da-f]{64}$/.test(adminVerifier)) return adminError('admin_unavailable',503);
-  const bearer=request.headers.get('Authorization')?.match(/^Bearer ([A-Za-z0-9_-]{40,128})$/i);
-  if (!bearer || await hash(bearer[1])!==adminVerifier) return adminError('unauthorized',401);
+  const bearer=request.headers.get('Authorization')?.match(/^Bearer (\d{6}|[A-Za-z0-9_-]{40,128})$/i);
+  if (!bearer) return adminError('unauthorized',401);
+  const valid=await hash(bearer[1])===adminVerifier;
+  if (bearer[1].length===6) {
+    const period=Math.floor(Date.now()/600000);
+    const client=await hash('pin:'+ (request.headers.get('CF-Connecting-IP') || 'shared'));
+    const blocked=await db.prepare('SELECT 1 FROM admin_pin_failures WHERE period=? AND client=? AND failures>=6')
+      .bind(period,client).first();
+    if (blocked) return adminError('too_many_attempts',429);
+    if (!valid) {
+      await db.batch([
+        db.prepare('DELETE FROM admin_pin_failures WHERE period < ?').bind(period),
+        db.prepare(`INSERT INTO admin_pin_failures(period,client,failures) VALUES (?,?,1)
+          ON CONFLICT(period,client) DO UPDATE SET failures=min(failures+1,6)`).bind(period,client)
+      ]);
+    }
+  }
+  if (!valid) return adminError('unauthorized',401);
   if (request.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase()!=='application/json')
     return adminError('invalid_request',415);
   const origin=request.headers.get('Origin');

@@ -13,6 +13,7 @@ const pages = {
 };
 const clientMessages = {
   unauthorized: '管理口令无效，请重新输入。',
+  too_many_attempts: '管理口令已多次输错，请稍后再登录（最多等 10 分钟）。',
   duplicate_number: '该学号已在名单中，请核对后重试。',
   number_changed: '这条记录已被其他操作更新，请刷新名单后重试。',
   not_found: '找不到这个学号，请刷新名单。',
