@@ -44,6 +44,29 @@ async function saveLoginCopy(db, room, input) {
   return adminJson({value});
 }
 
+const announcementFields='id,title,body,status,updated_at AS updatedAt,published_at AS publishedAt';
+
+async function saveAnnouncement(db, room, input) {
+  const {id,status,expectedUpdatedAt}=input;
+  const title=typeof input.title==='string' ? input.title.trim() : '';
+  const body=typeof input.body==='string' ? input.body.trim() : '';
+  if (typeof id!=='string' || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id) ||
+      !title || title.length>80 || !body || body.length>2000 || !['draft','published'].includes(status) ||
+      (expectedUpdatedAt!==undefined && !Number.isSafeInteger(expectedUpdatedAt)))
+    return adminError('invalid_request',400);
+  const now=Date.now();
+  const item=await db.prepare(`INSERT INTO announcements(room,id,title,body,status,updated_at,published_at)
+    VALUES (?,?,?,?,?,?,?) ON CONFLICT(room,id) DO UPDATE SET
+      title=excluded.title,body=excluded.body,status=excluded.status,
+      updated_at=CASE WHEN title=excluded.title AND body=excluded.body AND status=excluded.status
+                      THEN updated_at ELSE max(updated_at+1,excluded.updated_at) END,
+      published_at=CASE WHEN excluded.status='published' THEN COALESCE(published_at,max(updated_at+1,excluded.published_at)) END
+    WHERE updated_at=COALESCE(?,updated_at) OR (title=excluded.title AND body=excluded.body AND status=excluded.status)
+    RETURNING ${announcementFields}`)
+    .bind(room,id.toLowerCase(),title,body,status,now,status==='published'?now:null,expectedUpdatedAt??null).first();
+  return item ? adminJson({item}) : adminError('announcement_changed',409);
+}
+
 async function changeRoster(db, room, input) {
   const {operation,items}=input;
   if (!Array.isArray(items) || !items.length || !['enable','disable','remove','names'].includes(operation))
@@ -123,6 +146,12 @@ async function manage(request, db) {
 
   if (input.action==='loginCopyGet') return adminJson(await readLoginCopy(db,room));
   if (input.action==='loginCopySave') return saveLoginCopy(db,room,input.value);
+  if (input.action==='announcementList') {
+    const {results}=await db.prepare(`SELECT ${announcementFields} FROM announcements
+      WHERE room=? ORDER BY updated_at DESC,id DESC`).bind(room).all();
+    return adminJson({items:results});
+  }
+  if (input.action==='announcementSave') return saveAnnouncement(db,room,input);
   if (input.action==='hydrate') return hydrate(db,room,input);
   if (input.action==='changeRoster') return changeRoster(db,room,input);
   if (input.action==='list') {
@@ -346,6 +375,10 @@ export default {
     let response;
     if (request.method==='GET' && path.endsWith('/api/login-copy')) {
       response=json(await readLoginCopy(env.DB,allowedRooms[0]));
+    } else if (request.method==='GET' && path.endsWith('/api/announcements')) {
+      const {results}=await env.DB.prepare(`SELECT id,title,body,published_at AS publishedAt FROM announcements
+        WHERE room=? AND status='published' ORDER BY published_at DESC,id DESC`).bind(allowedRooms[0]).all();
+      response=json({items:results});
     } else if (request.method==='POST' && path.endsWith('/api/ranking')) {
       response=await ranking(request,env);
     } else {

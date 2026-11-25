@@ -14,7 +14,8 @@ const pages = {
   overview: ['管理概览', '查看班级交卷进度和成绩分布。'],
   roster: ['学号名单', '核对真实姓名，勾选学号可批量管理。'],
   ranking: ['成绩排名', '查看全班作答进度，按最近答卷状态筛选。'],
-  loginCopy: ['登录页文案', '保存后，同学下次打开学生登录页时会看到新文字。']
+  loginCopy: ['登录页文案', '保存后，同学下次打开学生登录页时会看到新文字。'],
+  announcements: ['公告管理', '发布的公告会显示在学生登录页和考场内。']
 };
 const clientMessages = {
   unauthorized: '管理口令无效，请重新输入。',
@@ -25,6 +26,7 @@ const clientMessages = {
   roster_unready: '名单尚未准备好，请稍后刷新。',
   invalid_number: '请填写正确的学号，可用字母、数字、短横线和下划线。',
   invalid_request: '请求内容有误，请核对后重试。',
+  announcement_changed: '这条公告已被其他管理员修改。请刷新公告列表后重新编辑。',
   admin_unavailable: '管理服务暂时不可用，请稍后重试。'
 };
 let session = null;
@@ -84,8 +86,9 @@ function showView(view) {
     setRefreshBusy(false);
   }
   for (const id of Object.keys(pages)) el(id).hidden = id !== view;
-  document.querySelector('.page-actions').hidden = view === 'loginCopy';
-  el('message').hidden = view === 'loginCopy';
+  const ownControls = view === 'loginCopy' || view === 'announcements';
+  document.querySelector('.page-actions').hidden = ownControls;
+  el('message').hidden = ownControls;
   document.querySelectorAll('#sidebar [data-view]').forEach(button => {
     const active = button.dataset.view === view;
     button.classList.toggle('active', active);
@@ -97,6 +100,7 @@ function showView(view) {
   setText('sectionHint', pages[view][1]);
   mobileMenu(false);
   if (view === 'loginCopy' && !session.hasLoginCopy) void syncLoginCopy();
+  if (view === 'announcements') void loadAnnouncements();
 }
 function navigate(view) {
   if (!session) return;
@@ -172,6 +176,123 @@ el('loginCopyForm').addEventListener('submit', event => {
     }
   }
   void syncLoginCopy(value);
+});
+
+function announcementMessage(text, error = false) {
+  setText('announcementMessage', text);
+  el('announcementMessage').classList.toggle('error', error);
+}
+function announcementBusy(busy) {
+  el('announcementRefresh').disabled = busy;
+  el('announcementNew').disabled = busy || !session?.announcements;
+  el('announcementList').inert = busy;
+  for (const id of ['announcementFields','announcementDraft','announcementPublish','announcementCancel']) el(id).disabled = busy;
+}
+function renderAnnouncements() {
+  const list = el('announcementList');
+  list.replaceChildren();
+  if (!session.announcements.length) {
+    list.append(element('p','empty','暂无公告'));
+    return;
+  }
+  for (const item of session.announcements) {
+    const published = item.status === 'published';
+    const card = element('article','announcement-item','');
+    const meta = element('div','announcement-meta','');
+    meta.append(element('span',published ? 'state' : 'state off',published ? '已发布' : '草稿'),
+      element('span','','更新于 ' + attemptClock.format(item.updatedAt)));
+    const actions = element('div','announcement-actions','');
+    const edit = element('button','secondary','编辑');
+    edit.type = 'button';
+    edit.addEventListener('click', () => openAnnouncement(item));
+    const toggle = element('button','secondary',published ? '撤下' : '发布');
+    toggle.type = 'button';
+    toggle.addEventListener('click', () => saveAnnouncement(item,published ? 'draft' : 'published'));
+    actions.append(edit,toggle);
+    card.append(meta,element('h3','',item.title),element('p','announcement-excerpt',item.body),actions);
+    list.append(card);
+  }
+}
+async function loadAnnouncements() {
+  const owner = session;
+  if (!owner || owner.announcementBusy) return;
+  owner.announcementBusy = true;
+  announcementBusy(true);
+  announcementMessage('正在读取公告…');
+  try {
+    const data = await api({action:'announcementList'},owner.token);
+    if (session !== owner) return;
+    owner.announcements = data.items;
+    renderAnnouncements();
+    announcementMessage('');
+  } catch (error) {
+    if (session !== owner) return;
+    if (error.code === 'unauthorized') logout(error.message);
+    else announcementMessage(error.code ? error.message : '读取失败，请点击刷新重试。',true);
+  } finally {
+    if (session === owner) {
+      owner.announcementBusy = false;
+      announcementBusy(false);
+    }
+  }
+}
+function openAnnouncement(item) {
+  const editing = Boolean(item);
+  const published = item?.status === 'published';
+  session.editingAnnouncement = item || {id:crypto.randomUUID()};
+  setText('announcementHeading',editing ? '编辑公告' : '新增公告');
+  el('announcementTitle').value = item?.title || '';
+  el('announcementBody').value = item?.body || '';
+  el('announcementDraft').hidden = published;
+  setText('announcementPublish',published ? '保存修改' : '发布公告');
+  setText('announcementError','');
+  el('announcementEditor').showModal();
+  el('announcementTitle').focus();
+}
+async function saveAnnouncement(item, status) {
+  const owner = session;
+  if (!owner || owner.announcementBusy) return;
+  owner.announcementBusy = true;
+  announcementBusy(true);
+  setText('announcementError','');
+  const {id,title,body,updatedAt} = item;
+  try {
+    const data = await api({action:'announcementSave',id,title,body,status,expectedUpdatedAt:updatedAt},owner.token);
+    if (session !== owner) return;
+    owner.announcements = [data.item,...owner.announcements.filter(old => old.id !== id)];
+    renderAnnouncements();
+    el('announcementEditor').close();
+    const message = status === 'draft' ? (item.status === 'published' ? '公告已撤下，保存在草稿中。' : '草稿已保存。')
+      : (item.status === 'published' ? '已更新发布的公告。' : '公告已发布。');
+    announcementMessage(message);
+  } catch (error) {
+    if (session !== owner) return;
+    if (error.code === 'unauthorized') { logout(error.message); return; }
+    const message = error.code ? error.message : '保存失败，请检查网络后重试。';
+    if (el('announcementEditor').open) setText('announcementError',message);
+    else announcementMessage(message,true);
+  } finally {
+    if (session === owner) {
+      owner.announcementBusy = false;
+      announcementBusy(false);
+    }
+  }
+}
+el('announcementRefresh').addEventListener('click',loadAnnouncements);
+el('announcementNew').addEventListener('click',() => openAnnouncement());
+el('announcementCancel').addEventListener('click',() => el('announcementEditor').close());
+el('announcementEditor').addEventListener('cancel',event => { if (session?.announcementBusy) event.preventDefault(); });
+el('announcementForm').addEventListener('submit', event => {
+  event.preventDefault();
+  const item = session.editingAnnouncement;
+  const title = el('announcementTitle').value.trim(), body = el('announcementBody').value.trim();
+  if (!title || !body) {
+    setText('announcementError',title ? '请填写公告正文。' : '请填写公告标题。');
+    el(title ? 'announcementBody' : 'announcementTitle').focus();
+    return;
+  }
+  const status = item.status === 'published' ? 'published' : event.submitter?.value || 'draft';
+  void saveAnnouncement({...item,title,body},status);
 });
 
 function matches(row, needle) {
@@ -494,6 +615,12 @@ function logout(message = '') {
   setSaving(false);
   setRefreshBusy(false);
   el('loginCopyForm').reset();
+  el('announcementEditor').close();
+  el('announcementForm').reset();
+  el('announcementList').replaceChildren();
+  announcementMessage('');
+  setText('announcementError','');
+  announcementBusy(false);
   el('loginCopyFields').disabled = true;
   el('copySave').disabled = true;
   el('copyRetry').hidden = true;
@@ -534,7 +661,8 @@ el('loginForm').addEventListener('submit', async event => {
     notify(mappingNotice(data));
     el('loginPanel').hidden = true;
     el('workspace').hidden = false;
-    const view = location.hash === '#loginCopy' && board === 'class' ? 'loginCopy' : 'overview';
+    const view = location.hash === '#announcements' ? 'announcements'
+      : location.hash === '#loginCopy' && board === 'class' ? 'loginCopy' : 'overview';
     history.replaceState(null, '', '#' + view);
     showView(view);
     el('pageTitle').focus();

@@ -249,6 +249,16 @@ button.quiet:hover { border-color: transparent; background: var(--teal-soft); }
 .copy-field textarea { resize: vertical; min-height: 84px; }
 .copy-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 15px; margin-top: 24px; }
 .copy-actions .notice { margin: 0; }
+.announcement-actions,.announcement-meta { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+#announcementMessage:not(:empty) { margin:0; padding:0 20px 14px; }
+.announcement-item { border-top:1px solid var(--line); padding:16px 20px; display:grid; gap:7px; }
+.announcement-item h3 { font-size:1rem; margin:0; overflow-wrap:anywhere; }
+.announcement-excerpt { margin:0; white-space:pre-line; overflow-wrap:anywhere; color:var(--muted); font-size:.9rem; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+.announcement-meta { color:var(--muted); font-size:.8rem; }
+.announcement-item button { min-height:32px; padding:4px 12px; font-size:.84rem; }
+#announcementEditor { width:min(550px,calc(100% - 24px)); }
+#announcementFields { display:grid; gap:15px; border:0; margin:16px 0 0; padding:0; min-width:0; }
+#announcementEditor .dialog-actions { flex-wrap:wrap; }
 .panel-heading { justify-content: space-between; gap: 13px; padding: 19px 22px; flex-wrap: wrap; }
 .panel-heading h2 { font-size: 1.04rem; letter-spacing: -.018em; font-weight: 670; }
 .panel-heading small, .panel-heading p, .panel-meta { color: var(--muted); font-size: .8rem; }
