@@ -21,13 +21,27 @@ const bestScores = `WITH entries AS (
   SELECT participant, nickname, suffix, scores, total, pending, ended
   FROM ordered WHERE priority = 1 ORDER BY (pending = 0) DESC, total DESC, ended, participant`;
 
-async function publishStudent(db, room, input, device, total) {
+const membership = `EXISTS(SELECT 1 FROM roster WHERE room=?) AS ready,
+  EXISTS(SELECT 1 FROM roster WHERE room=? AND student=?) AS listed`;
+
+function rosterError({ready, listed}) {
+  if (!ready) return json({error:'roster_unavailable'},503);
+  if (!listed) return json({error:'student_not_listed'},403);
+  return null;
+}
+
+async function studentIdentity(input) {
   const number = typeof input.studentNumber==='string' ? input.studentNumber.normalize('NFKC').trim().toUpperCase() : '';
-  const name = (typeof input.name==='string' ? input.name.normalize('NFKC').trim().replace(/\s+/gu,' ') : '') || '同学';
-  if (!/^[A-Z0-9][A-Z0-9_-]{0,31}$/.test(number) || name.length>40)
-    return json({error:'identity'},400);
+  if (!/^[A-Z0-9][A-Z0-9_-]{0,31}$/.test(number)) return null;
   const student = await hash('student-v1:'+input.room+':'+number);
-  const suffix = number.slice(Math.max(1, number.length-4));
+  return {student,suffix:number.slice(Math.max(1, number.length-4))};
+}
+
+async function publishStudent(db, room, input, device, total) {
+  const identity = await studentIdentity(input);
+  const name = (typeof input.name==='string' ? input.name.normalize('NFKC').trim().replace(/\s+/gu,' ') : '') || '同学';
+  if (!identity || name.length>40) return json({error:'identity'},400);
+  const {student,suffix} = identity;
   const {paper,revision,scores,pending,ended} = input;
   const statements = [
     db.prepare(`INSERT INTO students(room,student,name,name_key,suffix)
@@ -43,16 +57,15 @@ async function publishStudent(db, room, input, device, total) {
         revision=excluded.revision,nickname=excluded.nickname,scores=excluded.scores,total=excluded.total,pending=excluded.pending
       WHERE attempts.student=excluded.student AND attempts.revision<excluded.revision`)
       .bind(room,device,paper,revision,name,JSON.stringify(scores),total,pending,ended,student,room,student),
-    db.prepare(`SELECT EXISTS(SELECT 1 FROM roster WHERE room=?) AS ready,
-      EXISTS(SELECT 1 FROM roster WHERE room=? AND student=?) AS listed,
+    db.prepare(`SELECT ${membership},
       (SELECT student FROM attempts WHERE room=? AND participant=? AND paper=?) AS bound`)
       .bind(room,room,student,room,device,paper)
   ];
   const result = await db.batch(statements);
-  const {ready,listed,bound} = result[3].results[0];
-  if (!ready) return json({error:'roster_unavailable'},503);
-  if (!listed) return json({error:'student_not_listed'},403);
-  if (bound!==student) return json({error:'paper_bound'},409);
+  const record = result[3].results[0];
+  const error = rosterError(record);
+  if (error) return error;
+  if (record.bound!==student) return json({error:'paper_bound'},409);
   return json({participant:student,rosterVerified:true});
 }
 
@@ -66,6 +79,12 @@ export default {
     if (typeof input?.room !== 'string') return json({error:'room'}, 403);
     const room = await hash(input.room);
     if (!allowedRooms.includes(room)) return json({error:'room'}, 403);
+    if (input.action === 'checkStudent') {
+      const identity = await studentIdentity(input);
+      if (!identity) return json({error:'identity'},400);
+      const record = await env.DB.prepare('SELECT '+membership).bind(room,room,identity.student).first();
+      return rosterError(record) || json({rosterVerified:true});
+    }
     if (input.action === 'list' || input.action === 'standings') {
       const { results } = await env.DB.prepare(bestScores).bind(room).all();
       return json({rows: results.map(row => ({...row, scores:JSON.parse(row.scores)}))});
