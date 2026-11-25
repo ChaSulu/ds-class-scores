@@ -6,6 +6,9 @@ on:
 permissions:
   contents: read
   id-token: write
+concurrency:
+  group: publish-class-rankings
+  cancel-in-progress: false
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -13,4 +16,9 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           persist-credentials: false
+      - name: Materialize private class and QA roster migrations
+        run: node scripts/roster.cjs build
+        env:
+          RANK_ROSTER_CLASS: ${{ secrets.RANK_ROSTER_CLASS }}
+          RANK_ROSTER_QA: ${{ secrets.RANK_ROSTER_QA }}
       - uses: w7s-io/w7s-cloud@b2beaa290a5c7975698e4677a03f8b0289896274
