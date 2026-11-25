@@ -240,6 +240,15 @@ button.quiet:hover { border-color: transparent; background: var(--teal-soft); }
 }
 .metric-unit { margin-left: 4px; color: var(--subtle); font-size: .82rem; font-weight: 500; }
 .overview-grid { display: grid; grid-template-columns: minmax(0,1.45fr) minmax(265px,1fr); gap: 16px; margin-top: 19px; }
+#trafficHome { margin-top: 17px; }
+#trafficFull { margin-bottom: 17px; }
+#trafficFull #trafficDetails { display: none; }
+.traffic-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 15px; padding: 0 22px 20px; }
+.traffic-metrics dt,.traffic-metrics small { color: var(--muted); font-size: .82rem; }
+.traffic-metrics dd { margin: 3px 0; color: var(--muted); font-size: .83rem; }
+.traffic-metrics strong { color: var(--ink); font: 600 1.7rem/1.2 var(--mono); }
+.traffic-metrics div:first-child strong,.visit-online { color: var(--teal); }
+@media(max-width:700px) { .traffic-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); padding: 0 14px 15px; } }
 .panel { overflow: hidden; }
 .copy-panel { max-width: 760px; }
 .copy-panel form { padding: clamp(18px,3vw,32px); }

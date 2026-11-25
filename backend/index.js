@@ -192,6 +192,7 @@ async function manage(request, db) {
   }
 
   if (input.action==='loginCopyGet') return adminJson(await readLoginCopy(db,room));
+  if (input.action==='traffic') return trafficReport(db,room,input.scope);
   if (input.action==='loginCopySave') return saveLoginCopy(db,room,input.value);
   if (input.action==='announcementList') {
     const {results}=await db.prepare(`SELECT ${announcementFields} FROM announcements
@@ -275,6 +276,60 @@ async function studentIdentity(input) {
   if (!number) return null;
   const student = await hash('student-v1:'+input.room+':'+number);
   return {student,suffix:number.slice(Math.max(1, number.length-4))};
+}
+
+const visitPages = ['login','tf','mc','fill','code','essay','overview','history','ranking','submissions','result','review'];
+const visitIdPattern=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
+
+async function recordVisit(db, room, input) {
+  const {visit,seq,source,page,visible}=input;
+  if (typeof visit!=='string' || !visitIdPattern.test(visit) ||
+      !Number.isSafeInteger(seq) || seq<1 || !['web','file'].includes(source) ||
+      !visitPages.includes(page) || typeof visible!=='boolean') return json({error:'visit'},400);
+  const now=Date.now();
+  const identity=page==='login' ? null : await studentIdentity(input);
+  if (page!=='login' && !identity) return json({error:'identity'},400);
+  // A page load owns one row, even when its login request and presence updates arrive out of order.
+  const who=identity ? listedEntry : 'SELECT NULL AS student';
+  const bindings=identity ? [room,identity.student] : [];
+  const update=db.prepare(`WITH who AS (${who})
+    INSERT INTO frontend_visits(room,visit,student,source,page,opened_at,entered_at,seen_at,visible,seq)
+    SELECT ?,?,who.student,?,?,?,CASE WHEN who.student IS NOT NULL THEN ? END,?,?,? FROM who WHERE true
+    ON CONFLICT(room,visit) DO UPDATE SET student=excluded.student,page=excluded.page,
+      entered_at=COALESCE(frontend_visits.entered_at,excluded.entered_at),seen_at=excluded.seen_at,
+      visible=excluded.visible,seq=excluded.seq
+    WHERE excluded.seq>frontend_visits.seq AND (frontend_visits.student IS NULL OR frontend_visits.student=excluded.student)`)
+    .bind(...bindings,room,visit,source,page,now,now,now,+visible,seq);
+  if (input.previousVisit!==visit && visitIdPattern.test(input.previousVisit)) {
+    // A reload replaces the old document even if its final beacon was lost.
+    await db.batch([update,db.prepare('UPDATE frontend_visits SET visible=0,seq=? WHERE room=? AND visit=? AND seq<?')
+      .bind(Number.MAX_SAFE_INTEGER,room,input.previousVisit,Number.MAX_SAFE_INTEGER)]);
+  } else await update.run();
+  return json({ok:true});
+}
+
+async function trafficReport(db,room,scope) {
+  const now=Date.now(), day=86400000, offset=8*3600000;
+  const today=Math.floor((now+offset)/day)*day-offset, onlineSince=now-120000;
+  const queries=[
+    db.prepare('SELECT count(*) AS totalViews,count(CASE WHEN opened_at>=? THEN 1 END) AS todayViews FROM frontend_visits WHERE room=?').bind(today,room),
+    db.prepare('SELECT count(DISTINCT student) AS todayStudents FROM frontend_visits WHERE room=? AND entered_at>=?').bind(room,today),
+    db.prepare(`SELECT count(DISTINCT CASE WHEN r.active=1 AND r.removed=0 THEN v.student END) AS onlineStudents,
+      count(CASE WHEN v.student IS NULL THEN 1 END) AS onlineGuests FROM frontend_visits v
+      LEFT JOIN roster r ON r.room=v.room AND r.student=v.student
+      WHERE v.room=? AND v.visible=1 AND v.seen_at>=?`).bind(room,onlineSince)
+  ];
+  if (scope!=='summary') {
+    const onlineOnly=scope==='online';
+    queries.push(db.prepare(`SELECT r.number,r.real_name AS realName,v.student IS NOT NULL AS identified,v.source,v.page,
+      v.opened_at AS openedAt,v.seen_at AS seenAt,
+      (v.visible=1 AND v.seen_at>=? AND (v.student IS NULL OR r.active=1)) AS online
+      FROM frontend_visits v LEFT JOIN roster r ON r.room=v.room AND r.student=v.student AND r.removed=0
+      WHERE v.room=? ${onlineOnly ? 'AND v.visible=1 AND v.seen_at>=? AND (v.student IS NULL OR r.active=1) ORDER BY v.seen_at DESC' : 'ORDER BY v.opened_at DESC,v.visit DESC LIMIT 50'}`)
+      .bind(onlineSince,room,...(onlineOnly ? [onlineSince] : [])));
+  }
+  const [counts,visitors,online,recent]=await db.batch(queries);
+  return adminJson({asOf:now,...counts.results[0],...visitors.results[0],...online.results[0],recent:recent?.results});
 }
 
 function paperProgress(input) {
@@ -369,6 +424,7 @@ async function ranking(request, env) {
   if (typeof input?.room !== 'string') return json({error:'room'}, 403);
   const room = await hash(input.room);
   if (!allowedRooms.includes(room) || (input.action === 'enter' && room !== allowedRooms[0])) return json({error:'room'}, 403);
+  if (input.action==='visit') return recordVisit(env.DB,room,input);
   if (input.action === 'checkStudent' || input.action === 'enter') {
     const identity = await studentIdentity(input);
     if (!identity) return json({error:'identity'},400);

@@ -15,6 +15,7 @@ const pages = {
   overview: ['管理概览', '查看班级交卷进度和成绩分布。'],
   roster: ['学号名单', '核对真实姓名，勾选学号可批量管理。'],
   ranking: ['成绩排名', '查看全班作答进度，按最近答卷状态筛选。'],
+  traffic: ['访问统计', '查看学生端的在线人数、浏览量和最近访问记录。'],
   loginCopy: ['登录页文案', '保存后，同学下次打开学生登录页时会看到新文字。'],
   announcements: ['公告管理', '发布的公告会显示在学生登录页和考场内。']
 };
@@ -39,6 +40,7 @@ let members = [];
 let ranked = [];
 let expandedStudent = null;
 let rankTimer;
+let trafficTimer;
 const selected = new Map();
 
 function setText(id, text) { el(id).textContent = text; }
@@ -82,13 +84,14 @@ function mobileMenu(open) {
 function showView(view) {
   if (!Object.hasOwn(pages, view) || (view === 'loginCopy' && board !== 'class')) view = 'overview';
   clearInterval(rankTimer);
+  clearInterval(trafficTimer);
   if (view === 'ranking') rankTimer = setInterval(pollRanking, 15000);
   else if (session?.reading?.rankingOnly) {
     session.reading = false;
     setRefreshBusy(false);
   }
   for (const id of Object.keys(pages)) el(id).hidden = id !== view;
-  const ownControls = view === 'loginCopy' || view === 'announcements';
+  const ownControls = view === 'loginCopy' || view === 'announcements' || view === 'traffic';
   document.querySelector('.page-actions').hidden = ownControls;
   el('message').hidden = ownControls;
   document.querySelectorAll('#sidebar [data-view]').forEach(button => {
@@ -103,7 +106,62 @@ function showView(view) {
   mobileMenu(false);
   if (view === 'loginCopy' && !session.hasLoginCopy) void syncLoginCopy();
   if (view === 'announcements') void loadAnnouncements();
+  if (view === 'overview' || view === 'traffic') {
+    el(view==='traffic' ? 'trafficFull' : 'trafficHome').append(el('trafficSummary'));
+    pollTraffic();
+    trafficTimer=setInterval(pollTraffic,15000);
+  }
 }
+
+const trafficClock=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
+const trafficPages={login:'学生登录',tf:'判断题',mc:'单选题',fill:'填空题',code:'编程题',essay:'主观题',overview:'试卷概览',history:'练习记录',ranking:'班级排名',submissions:'提交记录',result:'成绩',review:'核对答案'};
+const trafficMetrics=['onlineStudents','onlineGuests','todayViews','todayStudents','totalViews'];
+function trafficScope() {
+  if (!el('traffic').hidden) return el('trafficScope').value;
+  return el('overview').hidden ? null : 'summary';
+}
+async function pollTraffic() {
+  const owner=session, scope=trafficScope();
+  if (!owner || !scope || document.hidden || owner.trafficRequest?.scope===scope) return;
+  const request={scope};
+  owner.trafficRequest=request;
+  try {
+    const data=await api({action:'traffic',scope},owner.token);
+    if (owner!==session || owner.trafficRequest!==request || scope!==trafficScope()) return;
+    for (const id of trafficMetrics) setText(id,data[id].toLocaleString('zh-CN'));
+    setText('trafficUpdated','北京时间 '+trafficClock.format(data.asOf)+' 更新 · 每 15 秒刷新');
+    if (scope==='summary') return;
+    const body=document.createDocumentFragment();
+    for (const item of data.recent) {
+      const row=document.createElement('tr');
+      cell(row,'number',item.number || (item.identified ? '学号不可用' : '未登录'),'学号');
+      cell(row,'',item.realName || '—','真实姓名');
+      cell(row,item.online ? 'visit-online' : '',item.online ? '在线' : '离线','状态');
+      cell(row,'',trafficPages[item.page],'最后所在页面');
+      cell(row,'',item.source==='web' ? '分享链接' : '分享文件','访问来源');
+      cell(row,'',trafficClock.format(item.openedAt),'打开时间');
+      cell(row,'',trafficClock.format(item.seenAt),'最近活动');
+      body.append(row);
+    }
+    el('visitRows').replaceChildren(body);
+    setText('visitsEmpty',scope==='online' ? '当前没有在线页面。' : '暂无访问记录。');
+    el('visitsEmpty').hidden=data.recent.length>0;
+  } catch (error) {
+    if (owner!==session || owner.trafficRequest!==request || scope!==trafficScope()) return;
+    if (error.code==='unauthorized') logout(error.message);
+    else setText('trafficUpdated','访问数据刷新失败，将在下次刷新时重试。');
+  } finally {
+    if (owner.trafficRequest===request) owner.trafficRequest=null;
+  }
+}
+el('trafficRefresh').addEventListener('click',pollTraffic);
+el('trafficScope').addEventListener('change',() => {
+  el('visitRows').replaceChildren();
+  setText('visitsEmpty','正在读取…');
+  el('visitsEmpty').hidden=false;
+  void pollTraffic();
+});
+document.addEventListener('visibilitychange',pollTraffic);
 function navigate(view) {
   if (!session) return;
   if (location.hash !== '#' + view) history.pushState(null, '', '#' + view);
@@ -615,6 +673,12 @@ function logout(message = '', keepView = false) {
   ranked = [];
   expandedStudent = null;
   clearInterval(rankTimer);
+  clearInterval(trafficTimer);
+  for (const id of trafficMetrics) setText(id,'—');
+  el('visitRows').replaceChildren();
+  el('trafficScope').value='recent';
+  setText('trafficUpdated','');
+  setText('visitsEmpty','');
   rosterPage = 1;
   rankPage = 1;
   if (el('editor').open) el('editor').close();
@@ -799,7 +863,7 @@ el('logout').addEventListener('click', async () => {
     await api({action:'deviceLogout'}, null, 'omit').catch(() => {});
   }
 });
-el('refresh').addEventListener('click', () => { if (session && !session.writing) refresh(); });
+el('refresh').addEventListener('click', () => { if (session && !session.writing) { refresh(); void pollTraffic(); } });
 window.addEventListener('pagehide', () => logout('',true));
 window.addEventListener('pageshow', () => { void restoreDevice(); });
 window.addEventListener('online', () => { void restoreDevice(); });

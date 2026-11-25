@@ -43,6 +43,7 @@
       <button type="button" class="nav-item" data-view="ranking"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 16V9m6 7V4m6 12v-5"/></svg><span>成绩排名</span></button>
       <button type="button" class="nav-item" id="loginCopyNav" data-view="loginCopy"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18m-13 5h6m-6 3h4"/></svg><span>登录页文案</span></button>
       <button type="button" class="nav-item" data-view="announcements"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 5 0 11-5v15L8 15H3zM7 15l2 6h3l-2-5M22 10v3"/></svg><span>公告管理</span></button>
+      <button type="button" class="nav-item" data-view="traffic"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h5l3-7 4 14 3-7h5"/></svg><span>访问统计</span></button>
     </nav>
     <div class="account-block"><span class="account-avatar"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg></span><span class="account-name">管理员</span><button id="logout" type="button" class="icon-button" aria-label="退出管理" title="退出管理"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5m5-12 4 4-4 4m-7-4h11"/></svg></button></div>
   </aside>
@@ -64,6 +65,17 @@
           <article class="metric-card metric-blue"><div class="metric-top"><span class="metric-label">已交卷</span><span class="metric-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="16" rx="2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-5"/></svg></span></div><div class="metric-reading"><strong class="metric-value" id="metricSubmitted">—</strong><span class="metric-unit">人</span></div></article>
           <article class="metric-card metric-violet"><div class="metric-top"><span class="metric-label">平均分</span><span class="metric-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 17a9 9 0 1 1 17.2 0H3.4Zm8.6-3 4-5"/></svg></span></div><div class="metric-reading"><strong class="metric-value" id="metricAverage">—</strong><span class="metric-unit">分</span></div></article>
           <article class="metric-card metric-amber"><div class="metric-top"><span class="metric-label">最高分</span><span class="metric-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0V4Zm8 1h3v2a4 4 0 0 1-4 4M8 5H5v2a4 4 0 0 0 4 4m3 2v5m-4 2h8"/></svg></span></div><div class="metric-reading"><strong class="metric-value" id="metricHigh">—</strong><span class="metric-unit">分</span></div></article>
+        </div>
+        <div id="trafficHome">
+          <section id="trafficSummary" class="panel" aria-label="学生端访问统计">
+            <div class="panel-heading"><div><h2>学生端访问</h2><p id="trafficUpdated" role="status"></p></div><button type="button" class="quiet text-link" id="trafficDetails" data-view="traffic">查看访问明细 →</button></div>
+            <dl class="traffic-metrics">
+              <div><dt>当前在线学生</dt><dd><strong id="onlineStudents">—</strong> 人</dd><small>登录页另有 <span id="onlineGuests">—</span> 个在线页面</small></div>
+              <div><dt>今日浏览量</dt><dd><strong id="todayViews">—</strong> 次</dd></div>
+              <div><dt>今日进场学生</dt><dd><strong id="todayStudents">—</strong> 人</dd></div>
+              <div><dt>累计浏览量</dt><dd><strong id="totalViews">—</strong> 次</dd></div>
+            </dl>
+          </section>
         </div>
         <div class="overview-grid">
           <section class="panel score-panel"><div class="panel-heading"><div><h2>成绩分布</h2><p>按已评分学号的最高分统计</p></div><span class="chart-unit">人数</span></div><div class="chart" id="distribution"></div></section>
@@ -99,6 +111,15 @@
         <div class="table-wrap"><table aria-label="班级成绩排名"><thead><tr><th scope="col">名次</th><th scope="col">学号</th><th scope="col">真实姓名</th><th scope="col">显示名</th><th scope="col">最高分</th><th scope="col">最近答卷状态</th><th scope="col">答题进度</th></tr></thead><tbody id="rankRows"></tbody></table></div>
         <p id="rankEmpty" class="empty" hidden></p>
         <div class="pagination"><span id="rankResultCount"></span><div class="pager-controls"><button id="rankPrev" type="button" aria-label="成绩上一页">上一页</button><span id="rankPageInfo"></span><button id="rankNext" type="button" aria-label="成绩下一页">下一页</button></div></div>
+      </section>
+      <section id="traffic" hidden aria-label="访问统计">
+        <div id="trafficFull"></div>
+        <section class="panel">
+          <div class="panel-heading"><div><h2>访问明细</h2><p>打开或刷新班级分享页记一次浏览，进场和切题不另计。在线表示页面在前台，且最近两分钟有连接。学生按学号去重，时间按北京时间显示。</p></div></div>
+          <div class="panel-tools"><label class="select-control"><span class="visually-hidden">访问范围</span><select id="trafficScope"><option value="recent">最近 50 次访问</option><option value="online">所有在线页面</option></select></label><button id="trafficRefresh" type="button" class="secondary">刷新访问数据</button></div>
+          <div class="table-wrap"><table aria-label="学生端访问明细"><thead><tr><th>学号</th><th>真实姓名</th><th>状态</th><th>最后所在页面</th><th>访问来源</th><th>打开时间</th><th>最近活动</th></tr></thead><tbody id="visitRows"></tbody></table></div>
+          <p id="visitsEmpty" class="empty"></p>
+        </section>
       </section>
       <section id="loginCopy" class="panel copy-panel" hidden aria-label="登录页文案">
         <form id="loginCopyForm">
