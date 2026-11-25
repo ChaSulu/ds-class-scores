@@ -1,0 +1,2 @@
+ALTER TABLE roster ADD COLUMN real_name TEXT;
+ALTER TABLE roster ADD COLUMN removed INTEGER NOT NULL DEFAULT 0 CHECK(removed IN (0,1));

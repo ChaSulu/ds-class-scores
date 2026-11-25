@@ -306,6 +306,20 @@ td.operations { width: 1%; }
 }
 .actions button:hover { text-decoration: underline; text-underline-offset: 3px; }
 .actions .pause { color: var(--danger); }
+.bulk-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 12px; padding: 10px 20px; border-top: 1px solid var(--line); background: #f7fafb; font-size: .82rem; }
+.bulk-bar button { min-height: 32px; padding: 5px 9px; font-size: .82rem; }
+.bulk-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.check-label { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.bulk-bar input[type="checkbox"], td.pick input { width: 17px; height: 17px; min-height: 0; padding: 0; margin: 0; accent-color: var(--teal); cursor: pointer; }
+#selectionCount { color: var(--muted); }
+tr.chosen, tr.chosen:hover { background: #eaf6f4; }
+.remove-button { color: var(--danger); }
+td.pick { width: 1%; }
+.edit-name { border: none; padding: 2px 0; min-height: 30px; background: transparent; color: var(--teal); text-align: left; overflow-wrap: anywhere; }
+.edit-name:hover { text-decoration: underline; background: transparent; }
+.target-list { margin: 8px 0; max-height: 170px; overflow: auto; padding: 8px 12px 8px 30px; background: var(--canvas); font-size: .9rem; }
+#realNameFields { margin-top: 12px; }
+#realNameInput { width: 100%; }
 .state {
   display: inline-flex; align-items: center; gap: 6px; width: max-content; padding: 3px 8px;
   border-radius: 5px; background: #eaf4f0; color: #22664f; font-size: .78rem; font-weight: 550;
@@ -413,6 +427,11 @@ dialog h2 { font-size: 1.24rem; }
   td.operations::before { margin-right: auto; }
   .actions { gap: 0; }
   .actions button { min-height: 39px; min-width: 44px; padding: 4px 7px; }
+  .bulk-bar { padding: 10px 14px; }
+  .bulk-actions { width: 100%; margin-left: 0; }
+  #roster td.pick { grid-column: 1/-1; flex-direction: row-reverse; align-items: center; justify-content: flex-end; gap: 6px; width: auto; }
+  #roster .actions { flex-wrap: wrap; }
+  #ranking tbody tr { align-items: start; }
   #ranking tbody tr { grid-template-columns: 44px minmax(0,1.3fr) minmax(0,1fr); }
   #ranking td.score { grid-column: 2; }
   .pagination { gap: 6px; padding: 10px 12px; }

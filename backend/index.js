@@ -21,6 +21,31 @@ const privateHeaders = {'Cache-Control':'no-store','X-Content-Type-Options':'nos
 const adminJson = (value,status=200) => Response.json(value,{status,headers:privateHeaders});
 const adminError = (error,status) => adminJson({error},status);
 
+async function changeRoster(db, room, input) {
+  const {operation,items}=input;
+  if (!Array.isArray(items) || !items.length || !['enable','disable','remove','names'].includes(operation))
+    return adminError('invalid_request',400);
+  const targets=[];
+  for (const item of items) {
+    const number=normalizedNumber(item?.number);
+    if (!number || typeof item.id!=='string' || !/^[a-f0-9]{64}$/.test(item.id)) return adminError('invalid_request',400);
+    const name=typeof item.realName==='string' ? item.realName.trim() : null;
+    if (operation==='names' && (name===null || name.length>40)) return adminError('invalid_request',400);
+    targets.push([item.id,number,name||null]);
+  }
+  const update={
+    enable:'active=1', disable:'active=0', remove:'active=0,removed=1,real_name=NULL,display_name=NULL',
+    names: input.onlyMissing ? 'real_name=COALESCE(real_name,matched.name)' : 'real_name=matched.name'
+  }[operation];
+  const result=await db.prepare(`WITH matched AS MATERIALIZED (
+    SELECT r.student,json_extract(j.value,'$[2]') AS name FROM json_each(?) j JOIN roster r
+    ON r.student=json_extract(j.value,'$[0]') AND r.number=json_extract(j.value,'$[1]')
+    WHERE r.room=? AND r.removed=0
+  ) UPDATE roster SET ${update} FROM matched WHERE roster.room=? AND roster.student=matched.student
+    AND (SELECT count(DISTINCT student) FROM matched)=?`).bind(JSON.stringify(targets),room,room,targets.length).run();
+  return result.meta.changes===targets.length ? adminJson({ok:true,count:targets.length}) : adminError('number_changed',409);
+}
+
 async function hydrate(db, room, input) {
   if (typeof input.roomToken!=='string' || await hash(input.roomToken)!==room ||
       !Array.isArray(input.numbers) || !input.numbers.length || input.numbers.length>500)
@@ -67,19 +92,20 @@ async function manage(request, db) {
   if (origin && origin!==new URL(request.url).origin && origin!=='https://chasulu.w7s.cloud') return adminError('origin',403);
   if (request.headers.get('Sec-Fetch-Site')==='cross-site') return adminError('origin',403);
   const raw=await request.text();
-  if (raw.length>22000) return adminError('size',413);
+  if (raw.length>128000) return adminError('size',413);
   let input;
   try {input=JSON.parse(raw);} catch {return adminError('invalid_request',400);}
   const room=input?.board==='class'?allowedRooms[0]:input?.board==='qa'?allowedRooms[1]:null;
   if (!room) return adminError('invalid_request',400);
 
   if (input.action==='hydrate') return hydrate(db,room,input);
+  if (input.action==='changeRoster') return changeRoster(db,room,input);
   if (input.action==='list') {
-    const {results}=await db.prepare(`SELECT r.number,r.active,r.display_name AS displayName,p.nickname AS submittedName,
+    const {results}=await db.prepare(`SELECT r.student AS id,r.number,r.active,r.real_name AS realName,r.display_name AS displayName,p.nickname AS submittedName,
       COALESCE(r.display_name,p.nickname) AS name,p.total,p.pending,
       ROW_NUMBER() OVER (ORDER BY p.ended,r.student) AS tieOrder
       FROM roster r LEFT JOIN best_papers p ON p.room=r.room AND p.student=r.student
-      WHERE r.room=? ORDER BY r.number IS NULL,r.number`).bind(room).all();
+      WHERE r.room=? AND r.removed=0 ORDER BY r.number IS NULL,r.number`).bind(room).all();
     return adminJson({rows:results.map(row=>({...row,active:!!row.active})),unmapped:results.filter(r=>r.number===null).length});
   }
   const number=normalizedNumber(input.number);
@@ -93,18 +119,21 @@ async function manage(request, db) {
     const lookup=await hash('student-v1:'+settings.token+':'+target);
     if (input.action==='add') {
       const key=await hash(crypto.randomUUID());
-      statement=db.prepare('INSERT OR IGNORE INTO roster(room,student,lookup,number) VALUES (?,?,?,?)')
-        .bind(room,key,lookup,number);
+      const name=input.realName ?? '';
+      if (typeof name!=='string' || name.trim().length>40) return adminError('invalid_request',400);
+      statement=db.prepare(`INSERT OR IGNORE INTO roster(room,student,lookup,number,real_name) VALUES (?,?,?,?,?)
+        ON CONFLICT(room,number) DO UPDATE SET removed=0,active=1,real_name=excluded.real_name WHERE roster.removed=1`)
+        .bind(room,key,lookup,number,name.trim()||null);
     } else {
-      statement=db.prepare('UPDATE OR IGNORE roster SET number=?,lookup=? WHERE room=? AND number=?')
+      statement=db.prepare('UPDATE OR IGNORE roster SET number=?,lookup=? WHERE room=? AND number=? AND removed=0')
         .bind(target,lookup,room,number);
     }
   } else if (input.action==='setActive' && typeof input.active==='boolean') {
-    statement=db.prepare('UPDATE roster SET active=? WHERE room=? AND number=?').bind(+input.active,room,number);
+    statement=db.prepare('UPDATE roster SET active=? WHERE room=? AND number=? AND removed=0').bind(+input.active,room,number);
   } else if (input.action==='setDisplayName' && typeof input.displayName==='string') {
     const displayName=input.displayName.normalize('NFKC').trim().replace(/\s+/gu,' ');
     if (displayName.length>40) return adminError('invalid_request',400);
-    statement=db.prepare('UPDATE roster SET display_name=? WHERE room=? AND number=?').bind(displayName||null,room,number);
+    statement=db.prepare('UPDATE roster SET display_name=? WHERE room=? AND number=? AND removed=0').bind(displayName||null,room,number);
   } else {
     return adminError('invalid_request',400);
   }
@@ -119,10 +148,10 @@ const bestScores = `SELECT r.student AS participant, COALESCE(r.display_name,p.n
   p.scores,p.total,p.pending,p.ended
   FROM roster r JOIN best_papers p ON p.room=r.room AND p.student=r.student
   JOIN students s ON s.room=r.room AND s.student=r.student
-  WHERE r.room=? AND r.active=1 ORDER BY (p.pending=0) DESC,p.total DESC,p.ended,r.student`;
+  WHERE r.room=? AND r.active=1 AND r.removed=0 ORDER BY (p.pending=0) DESC,p.total DESC,p.ended,r.student`;
 
 // The stable student key owns papers. Only the lookup digest changes when an admin corrects a number.
-const listedEntry = 'SELECT student FROM roster WHERE room=? AND active=1 AND COALESCE(lookup,student)=?';
+const listedEntry = 'SELECT student FROM roster WHERE room=? AND active=1 AND removed=0 AND COALESCE(lookup,student)=?';
 const membership = `EXISTS(SELECT 1 FROM roster WHERE room=?) AS ready,
   (${listedEntry}) AS listed`;
 

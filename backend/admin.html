@@ -74,15 +74,26 @@
       </section>
       <section id="roster" class="panel" hidden aria-label="学号名单">
         <div class="panel-heading"><div><h2>班级名单</h2><p id="counts"></p></div><button id="add" class="primary" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>新增学号</span></button></div>
-        <div class="panel-tools"><label class="search-box"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span class="visually-hidden">搜索学号或显示名</span><input type="search" id="search" placeholder="搜索学号或显示名" autocomplete="off"></label><label class="select-control"><span class="visually-hidden">按启用状态筛选</span><select id="filter"><option value="all">全部状态</option><option value="on">已启用</option><option value="off">已停用</option></select></label></div>
-        <div class="table-wrap"><table aria-label="班级学号名单"><thead><tr><th scope="col">学号</th><th scope="col">显示名</th><th scope="col">最高分</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody id="members"></tbody></table></div>
+        <div class="panel-tools"><label class="search-box"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span class="visually-hidden">搜索学号、真实姓名或显示名</span><input type="search" id="search" placeholder="搜索学号、真实姓名或显示名" autocomplete="off"></label><label class="select-control"><span class="visually-hidden">按启用状态筛选</span><select id="filter"><option value="all">全部状态</option><option value="on">已启用</option><option value="off">已停用</option></select></label></div>
+        <div class="bulk-bar" aria-label="批量管理学号">
+          <label class="check-label"><input id="selectPage" type="checkbox">全选本页</label>
+          <button id="selectMatches" class="quiet" type="button" hidden>选中全部筛选结果</button>
+          <span id="selectionCount" role="status"></span>
+          <div class="bulk-actions">
+            <button type="button" data-bulk="enable" disabled>批量启用</button>
+            <button type="button" data-bulk="disable" disabled>批量停用</button>
+            <button type="button" data-bulk="remove" class="remove-button" disabled>批量删除</button>
+            <button id="clearSelection" type="button" class="quiet" hidden>取消选择</button>
+          </div>
+        </div>
+        <div class="table-wrap"><table aria-label="班级学号名单"><thead><tr><th scope="col">选择</th><th scope="col">学号</th><th scope="col">真实姓名</th><th scope="col">显示名</th><th scope="col">最高分</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody id="members"></tbody></table></div>
         <p class="empty" id="empty" hidden></p>
         <div class="pagination"><span id="resultCount"></span><div class="pager-controls"><label class="select-control"><span class="visually-hidden">每页行数</span><select id="pageSize"><option value="15">15 条 / 页</option><option value="30">30 条 / 页</option><option value="50">50 条 / 页</option></select></label><button id="prevPage" type="button" aria-label="名单上一页">上一页</button><span id="pageInfo"></span><button id="nextPage" type="button" aria-label="名单下一页">下一页</button></div></div>
       </section>
       <section id="ranking" class="panel" hidden aria-label="成绩排名">
         <div class="panel-heading"><div><h2>班级成绩榜</h2><p>每个启用学号取已评分的最高分，同分并列。</p></div></div>
-        <div class="panel-tools"><label class="search-box"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span class="visually-hidden">搜索学号或显示名</span><input type="search" id="rankSearch" placeholder="搜索学号或显示名" autocomplete="off"></label><label class="select-control"><span class="visually-hidden">按评分状态筛选</span><select id="rankFilter"><option value="all">全部成绩</option><option value="graded">已评分</option><option value="pending">待自评</option></select></label></div>
-        <div class="table-wrap"><table aria-label="班级成绩排名"><thead><tr><th scope="col">名次</th><th scope="col">学号</th><th scope="col">显示名</th><th scope="col">最高分</th><th scope="col">评分状态</th></tr></thead><tbody id="rankRows"></tbody></table></div>
+        <div class="panel-tools"><label class="search-box"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span class="visually-hidden">搜索学号、真实姓名或显示名</span><input type="search" id="rankSearch" placeholder="搜索学号、真实姓名或显示名" autocomplete="off"></label><label class="select-control"><span class="visually-hidden">按评分状态筛选</span><select id="rankFilter"><option value="all">全部成绩</option><option value="graded">已评分</option><option value="pending">待自评</option></select></label></div>
+        <div class="table-wrap"><table aria-label="班级成绩排名"><thead><tr><th scope="col">名次</th><th scope="col">学号</th><th scope="col">真实姓名</th><th scope="col">显示名</th><th scope="col">最高分</th><th scope="col">评分状态</th></tr></thead><tbody id="rankRows"></tbody></table></div>
         <p id="rankEmpty" class="empty" hidden></p>
         <div class="pagination"><span id="rankResultCount"></span><div class="pager-controls"><button id="rankPrev" type="button" aria-label="成绩上一页">上一页</button><span id="rankPageInfo"></span><button id="rankNext" type="button" aria-label="成绩下一页">下一页</button></div></div>
       </section>
@@ -92,6 +103,8 @@
 <dialog id="editor" aria-labelledby="editTitle">
   <form id="editForm"><h2 id="editTitle"></h2><p id="impact"></p>
     <div id="numberFields"><label id="numberLabel" for="number">学号</label><input id="number" maxlength="32" autocapitalize="characters" autocomplete="off" spellcheck="false"></div>
+    <div id="realNameFields" hidden><label for="realNameInput">真实姓名（选填）</label><input id="realNameInput" maxlength="40" autocomplete="off"></div>
+    <ul class="target-list" id="editTargets" aria-label="此次操作的学号" hidden></ul>
     <p id="editError" class="notice error" role="alert"></p>
     <div class="dialog-actions"><button class="secondary" id="cancel" type="button">取消</button><button class="primary" id="save" type="submit">保存</button></div>
   </form>
