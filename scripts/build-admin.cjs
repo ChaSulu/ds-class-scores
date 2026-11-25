@@ -13,10 +13,14 @@ function renderAdminPage() {
 if (require.main === module) {
   const digest = process.env.RANK_ADMIN_HASH || '';
   if (!/^[a-f0-9]{64}$/.test(digest)) throw Error('Configure RANK_ADMIN_HASH before publishing the administration page.');
+  const contentKey = process.env.CLASS_EXAM_CONTENT_KEY || '';
+  if (!/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/.test(contentKey))
+    throw Error('Set CLASS_EXAM_CONTENT_KEY to 32 bytes encoded as unpadded base64url before publishing.');
   const entry = path.join(backend, 'index.js');
   const source = fs.readFileSync(entry, 'utf8');
   fs.writeFileSync(entry, source
     .replace("'__RANK_ADMIN_HASH__'", () => JSON.stringify(digest))
+    .replace("'__CLASS_EXAM_CONTENT_KEY__'", () => JSON.stringify(contentKey))
     .replace("'__RANK_ADMIN_PAGE__'", () => JSON.stringify(renderAdminPage())));
 }
 

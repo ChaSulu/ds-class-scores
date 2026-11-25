@@ -11,6 +11,7 @@ const hash = async value => Array.from(new Uint8Array(await crypto.subtle.digest
 const caps = [10, 15, 40, 6, 29];
 const adminVerifier = '__RANK_ADMIN_HASH__';
 const adminPage = '__RANK_ADMIN_PAGE__';
+const examContentKey = '__CLASS_EXAM_CONTENT_KEY__';
 
 function normalizedNumber(value) {
   const number = typeof value==='string' ? value.normalize('NFKC').trim().toUpperCase() : '';
@@ -260,6 +261,56 @@ async function publishStudent(db, room, input, device, total, progress) {
   return json({participant:record.listed,rosterVerified:true});
 }
 
+async function ranking(request, env) {
+  const raw = await request.text();
+  if (raw.length > 1800) return json({error:'size'}, 413);
+  let input;
+  try { input = JSON.parse(raw); } catch { return json({error:'json'}, 400); }
+  if (typeof input?.room !== 'string') return json({error:'room'}, 403);
+  const room = await hash(input.room);
+  if (!allowedRooms.includes(room) || (input.action === 'enter' && room !== allowedRooms[0])) return json({error:'room'}, 403);
+  if (input.action === 'checkStudent' || input.action === 'enter') {
+    const identity = await studentIdentity(input);
+    if (!identity) return json({error:'identity'},400);
+    const record = await env.DB.prepare('SELECT '+membership).bind(room,room,identity.student).first();
+    const error = rosterError(record);
+    if (error) return error;
+    if (input.action === 'checkStudent') return json({rosterVerified:true});
+    if (examContentKey.length !== 43) return json({error:'entry_unavailable'},503);
+    return json({rosterVerified:true,participant:record.listed,contentKey:examContentKey});
+  }
+  if (input.action === 'list' || input.action === 'standings') {
+    const { results } = await env.DB.prepare(bestScores).bind(room).all();
+    return json({rows: results.map(row => ({...row, scores:JSON.parse(row.scores)}))});
+  }
+  if (!['submit','publish','progress'].includes(input.action)) return json({error:'action'}, 400);
+  const {key, paper, revision, nickname, scores, pending, ended} = input;
+  if (typeof key !== 'string' || !/^[a-f0-9]{64}$/.test(key) ||
+      typeof paper !== 'string' || !/^[a-z0-9-]{5,65}$/.test(paper) ||
+      !Number.isSafeInteger(revision) || revision < 1) return json({error:input.action==='progress'?'progress':'score'},400);
+  const participant = await hash(key);
+  let progress=null;
+  if (input.action==='progress' || (input.action==='publish' && input.progress!==undefined)) {
+    progress=paperProgress(input);
+    if (!progress) return json({error:'progress'},400);
+    if (input.action==='progress') return recordDraft(env.DB,room,input,participant,progress);
+  }
+  if ((input.action==='submit' && (typeof nickname !== 'string' || !nickname.trim() || nickname.length > 24)) ||
+      !Array.isArray(scores) || scores.length !== caps.length ||
+      !scores.every((n,i) => Number.isFinite(n) && n >= 0 && n <= caps[i]) ||
+      !Number.isInteger(pending) || pending < 0 || pending > 8 ||
+      !Number.isSafeInteger(ended) || ended < 1 || ended > Date.now() + 86400000)
+    return json({error:'score'}, 400);
+  const total = Math.round(scores.reduce((a,b) => a+b, 0) * 100) / 100;
+  if (input.action==='publish') return publishStudent(env.DB, room, input, participant, total, progress);
+  await env.DB.prepare(`INSERT INTO attempts (room,participant,paper,revision,nickname,scores,total,pending,ended)
+    VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(room,participant,paper) DO UPDATE SET
+    revision=excluded.revision,nickname=excluded.nickname,scores=excluded.scores,total=excluded.total,pending=excluded.pending
+    WHERE attempts.student IS NULL AND excluded.revision > attempts.revision`).bind(room,participant,paper,revision,
+      nickname.trim(),JSON.stringify(scores),total,pending,ended).run();
+  return json({participant});
+}
+
 export default {
   async fetch(request, env) {
     const path=new URL(request.url).pathname.replace(/\/$/,'');
@@ -269,48 +320,9 @@ export default {
       'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
     }});
     if (request.method !== 'POST' || !path.endsWith('/api/ranking')) return json({error:'route'}, 404);
-    const raw = await request.text();
-    if (raw.length > 1800) return json({error:'size'}, 413);
-    let input;
-    try { input = JSON.parse(raw); } catch { return json({error:'json'}, 400); }
-    if (typeof input?.room !== 'string') return json({error:'room'}, 403);
-    const room = await hash(input.room);
-    if (!allowedRooms.includes(room)) return json({error:'room'}, 403);
-    if (input.action === 'checkStudent') {
-      const identity = await studentIdentity(input);
-      if (!identity) return json({error:'identity'},400);
-      const record = await env.DB.prepare('SELECT '+membership).bind(room,room,identity.student).first();
-      return rosterError(record) || json({rosterVerified:true});
-    }
-    if (input.action === 'list' || input.action === 'standings') {
-      const { results } = await env.DB.prepare(bestScores).bind(room).all();
-      return json({rows: results.map(row => ({...row, scores:JSON.parse(row.scores)}))});
-    }
-    if (!['submit','publish','progress'].includes(input.action)) return json({error:'action'}, 400);
-    const {key, paper, revision, nickname, scores, pending, ended} = input;
-    if (typeof key !== 'string' || !/^[a-f0-9]{64}$/.test(key) ||
-        typeof paper !== 'string' || !/^[a-z0-9-]{5,65}$/.test(paper) ||
-        !Number.isSafeInteger(revision) || revision < 1) return json({error:input.action==='progress'?'progress':'score'},400);
-    const participant = await hash(key);
-    let progress=null;
-    if (input.action==='progress' || (input.action==='publish' && input.progress!==undefined)) {
-      progress=paperProgress(input);
-      if (!progress) return json({error:'progress'},400);
-      if (input.action==='progress') return recordDraft(env.DB,room,input,participant,progress);
-    }
-    if ((input.action==='submit' && (typeof nickname !== 'string' || !nickname.trim() || nickname.length > 24)) ||
-        !Array.isArray(scores) || scores.length !== caps.length ||
-        !scores.every((n,i) => Number.isFinite(n) && n >= 0 && n <= caps[i]) ||
-        !Number.isInteger(pending) || pending < 0 || pending > 8 ||
-        !Number.isSafeInteger(ended) || ended < 1 || ended > Date.now() + 86400000)
-      return json({error:'score'}, 400);
-    const total = Math.round(scores.reduce((a,b) => a+b, 0) * 100) / 100;
-    if (input.action==='publish') return publishStudent(env.DB, room, input, participant, total, progress);
-    await env.DB.prepare(`INSERT INTO attempts (room,participant,paper,revision,nickname,scores,total,pending,ended)
-      VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(room,participant,paper) DO UPDATE SET
-      revision=excluded.revision,nickname=excluded.nickname,scores=excluded.scores,total=excluded.total,pending=excluded.pending
-      WHERE attempts.student IS NULL AND excluded.revision > attempts.revision`).bind(room,participant,paper,revision,
-        nickname.trim(),JSON.stringify(scores),total,pending,ended).run();
-    return json({participant});
+    const response = await ranking(request, env);
+    response.headers.set('Vary','Origin');
+    if (request.headers.get('Origin') === 'null') response.headers.set('Access-Control-Allow-Origin','null');
+    return response;
   }
 };

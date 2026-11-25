@@ -25,4 +25,5 @@ jobs:
         run: node scripts/build-admin.cjs
         env:
           RANK_ADMIN_HASH: ${{ secrets.RANK_ADMIN_HASH }}
+          CLASS_EXAM_CONTENT_KEY: ${{ secrets.CLASS_EXAM_CONTENT_KEY }}
       - uses: w7s-io/w7s-cloud@b2beaa290a5c7975698e4677a03f8b0289896274
