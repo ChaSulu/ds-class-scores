@@ -30,8 +30,10 @@ function generate(board,value,directory) {
       !students.every(s=>typeof s==='string' && /^[a-f0-9]{64}$/.test(s))) throw Error('Invalid roster configuration.');
   // D1 remembers applied migration filenames. A new secret version can replace a list with an earlier set.
   const filename='9000_'+board+'_'+version+'_'+sha256(value).slice(0,12)+'.sql';
-  const sql="DELETE FROM roster WHERE room='"+room+"';\n"+
-    "INSERT INTO roster(room,student) SELECT '"+room+"',value FROM json_each('"+JSON.stringify(students)+"');\n";
+  // Once the owner imports the readable numbers, this room is managed by the admin page.
+  const bootstrap="NOT EXISTS (SELECT 1 FROM admin_rooms WHERE room='"+room+"')";
+  const sql="DELETE FROM roster WHERE room='"+room+"' AND "+bootstrap+";\n"+
+    "INSERT INTO roster(room,student) SELECT '"+room+"',value FROM json_each('"+JSON.stringify(students)+"') WHERE "+bootstrap+";\n";
   fs.writeFileSync(path.join(directory,filename),sql);
 }
 

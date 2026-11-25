@@ -21,4 +21,8 @@ jobs:
         env:
           RANK_ROSTER_CLASS: ${{ secrets.RANK_ROSTER_CLASS }}
           RANK_ROSTER_QA: ${{ secrets.RANK_ROSTER_QA }}
+      - name: Build the administration page
+        run: node scripts/build-admin.cjs
+        env:
+          RANK_ADMIN_HASH: ${{ secrets.RANK_ADMIN_HASH }}
       - uses: w7s-io/w7s-cloud@b2beaa290a5c7975698e4677a03f8b0289896274

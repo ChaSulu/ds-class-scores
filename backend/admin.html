@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>名单管理 · 数据结构模拟考</title>
+<style>
+:root{color-scheme:light;--ink:#24354a;--muted:#586a7b;--line:#dce3ea;--blue:#1768ad;--blue-dark:#10528d;--canvas:#f2f5f8;--danger:#a0322b}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);background:var(--canvas);font:16px/1.55 "HarmonyOS Sans SC","Microsoft YaHei UI",system-ui,-apple-system,sans-serif}
+h1,h2,p{margin:0}h1{font-size:1.55rem;letter-spacing:.01em}h2{font-size:1.2rem}
+header{background:#fff;border-top:3px solid var(--blue);border-bottom:1px solid var(--line)}
+.top{max-width:1120px;min-height:58px;margin:auto;padding:8px 24px;display:flex;align-items:center;gap:14px}
+.brand{font-weight:650}.context{padding-left:14px;border-left:1px solid var(--line);color:var(--muted);font-size:.9rem}
+.top button{margin-left:auto}
+main{max-width:1120px;margin:30px auto;padding:0 24px}
+.card{border:1px solid var(--line);border-radius:8px;background:#fff}
+.login{max-width:410px;margin:clamp(40px,11vh,110px) auto;padding:28px}
+.login form{margin-top:20px}.login .primary{width:100%;margin-top:20px}
+label{font-size:.9rem;font-weight:600}
+input,select,button{font:inherit}
+input,select{border:1px solid #aebccc;border-radius:5px;background:#fff;color:var(--ink);min-height:40px;max-width:100%;padding:6px 11px}
+label+input{display:block;width:100%;margin-top:6px}
+button{cursor:pointer;min-height:38px;padding:6px 14px;line-height:1.35;border-radius:5px;border:1px solid var(--line);background:#fff;color:var(--ink)}
+button:hover{background:#f0f5fa}button.primary{color:white;background:var(--blue);border-color:var(--blue);font-weight:600}button.primary:hover{background:var(--blue-dark)}
+button.destructive{color:white;background:var(--danger);border-color:var(--danger)}button:disabled{opacity:.55;cursor:default}
+:focus-visible{outline:3px solid #79b8f2;outline-offset:2px}
+[hidden]{display:none!important}
+.heading,.tools,.dialog-actions,.actions{display:flex;align-items:center;gap:10px}
+.heading{justify-content:space-between;align-items:flex-end;margin-bottom:18px}
+.counts,.quiet{font-size:.9rem;color:var(--muted)}.counts{margin-top:3px}
+.tools{padding:14px 18px;flex-wrap:wrap}.tools input{width:min(300px,100%)}.tools select{font-size:.9rem}.tools button{margin-left:auto}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;text-align:left;font-size:.93rem}th,td{padding:11px 18px;border-top:1px solid var(--line);vertical-align:middle}th{background:#f6f8fa;color:var(--muted);font-size:.85rem;font-weight:600}
+td.number{font-family:ui-monospace,Consolas,monospace;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}td.name{overflow-wrap:anywhere}td.score{font-variant-numeric:tabular-nums}
+tbody tr:hover{background:#f8fbfd}
+.actions{gap:14px;white-space:nowrap}.actions button{border:0;background:transparent;padding:4px 0;min-height:30px;color:var(--blue);font-size:.9rem}.actions button:hover{text-decoration:underline}.actions .pause{color:var(--danger)}
+.state{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-size:.88rem}
+.state::before{content:"";width:7px;height:7px;border-radius:50%;background:#21755f}.state.off::before{background:#8895a2}
+.empty{padding:32px 18px;text-align:center;color:var(--muted);border-top:1px solid var(--line)}
+.notice{margin:12px 0;color:var(--muted);font-size:.92rem;overflow-wrap:anywhere}.notice:empty{display:none}.error{color:var(--danger)}
+#loginError{margin-bottom:0}#resultCount{font-size:.87rem;padding:0 18px 12px;color:var(--muted)}
+dialog{padding:0;border:1px solid var(--line);border-radius:8px;width:min(430px,calc(100vw - 32px));color:var(--ink);box-shadow:0 14px 54px #16273b28}
+dialog::backdrop{background:#15273863}dialog form{padding:24px}
+#impact{margin:10px 0 16px;font-size:.94rem;color:var(--muted)}
+.dialog-actions{justify-content:flex-end;margin-top:22px}
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media(max-width:660px){
+ .top{padding:6px 14px;gap:9px}.context{padding-left:9px;font-size:.83rem}.top button{padding:5px 8px;font-size:.85rem}
+ main{padding:0 12px;margin:18px auto}.heading{align-items:center;margin-bottom:13px}h1{font-size:1.3rem}
+ .login{padding:22px}.tools{padding:12px;gap:8px}.tools input{width:100%}
+ table,tbody{display:block}thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+ tbody tr{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"number state" "name score" "actions actions";gap:6px 12px;border-top:1px solid var(--line);padding:12px}
+ td{border:0;padding:0}.number{grid-area:number;font-weight:650}.name{grid-area:name}.score{grid-area:score;text-align:right}
+ .name::before,.score::before{content:attr(data-label);display:block;font-size:.78rem;color:var(--muted)}
+ .status{grid-area:state;text-align:right}.operations{grid-area:actions}.actions{justify-content:flex-end;gap:20px}
+}
+</style>
+</head>
+<body>
+<header><div class="top"><span class="brand">数据结构模拟考</span><span class="context" id="context">后台管理</span><button id="logout" hidden>退出管理</button></div></header>
+<main>
+<section class="card login" id="loginPanel">
+ <h1>管理员登录</h1>
+ <form id="loginForm">
+  <label for="password">管理口令</label>
+  <input type="password" id="password" autocomplete="current-password" required>
+  <p class="notice error" id="loginError" role="alert"></p>
+  <button class="primary" type="submit" id="signIn">登录</button>
+ </form>
+</section>
+<section id="roster" hidden>
+ <div class="heading"><div><h1>学号名单</h1><p id="counts" class="counts"></p></div><button type="button" id="add" class="primary">新增学号</button></div>
+ <p id="message" class="notice" role="status"></p>
+ <div class="card">
+  <div class="tools">
+   <label class="visually-hidden" for="search">搜索学号或显示名</label>
+   <input type="search" id="search" placeholder="搜索学号或显示名" autocomplete="off">
+   <label class="visually-hidden" for="filter">按状态筛选</label>
+   <select id="filter"><option value="all">全部状态</option><option value="on">已启用</option><option value="off">已停用</option></select>
+   <button type="button" id="refresh">刷新名单</button>
+  </div>
+  <p id="resultCount" hidden></p>
+  <div class="table-wrap"><table aria-label="班级学号名单"><thead><tr><th scope="col">学号</th><th scope="col">显示名</th><th scope="col">最高分</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody id="members"></tbody></table></div>
+  <p id="empty" class="empty" hidden></p>
+ </div>
+</section>
+</main>
+<dialog id="editor" aria-labelledby="editTitle">
+ <form id="editForm">
+  <h2 id="editTitle"></h2><p id="impact"></p>
+  <div id="numberFields"><label id="numberLabel" for="number">学号</label><input id="number" maxlength="32" autocapitalize="characters" autocomplete="off" spellcheck="false"></div>
+  <p id="editError" class="notice error" role="alert"></p>
+  <div class="dialog-actions"><button id="cancel" type="button">取消</button><button id="save" type="submit" class="primary">保存</button></div>
+ </form>
+</dialog>
+<script>
+'use strict';
+const el=id=>document.getElementById(id);
+const board=new URLSearchParams(location.search).get('board')==='qa'?'qa':'class';
+if(board==='qa') el('context').textContent='测试名单管理';
+const endpoint=location.pathname.replace(/\/$/,'')+'/api';
+let key='', members=[], currentEdit=null, writing=false, reading=false;
+const clientMessages={
+ unauthorized:'管理口令无效，请重新输入。', duplicate_number:'该学号已在名单中，请核对后重试。',
+ number_changed:'这条记录已被其他操作更新，请刷新名单后重试。', not_found:'找不到这个学号，请刷新名单。',
+ roster_unready:'名单尚未准备好，请稍后刷新。',invalid_number:'请填写正确的学号，可用字母、数字、短横线和下划线。',
+ invalid_request:'请求内容有误，请核对后重试。', admin_unavailable:'管理服务暂时不可用，请稍后重试。'
+};
+async function api(body,token=key) {
+ const response=await fetch(endpoint,{method:'POST',credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',
+  headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({board,...body}),signal:AbortSignal.timeout(20000)});
+ const data=await response.json();
+ if(!response.ok || data.error){const err=new Error(clientMessages[data.error]||'管理服务未能完成请求。');err.code=data.error;throw err;}
+ return data;
+}
+function notify(text,error=false){el('message').textContent=text;el('message').classList.toggle('error',error);}
+function logout(message=''){
+ key='';members=[];currentEdit=null;
+ if(el('editor').open) el('editor').close();
+ el('members').replaceChildren();el('counts').textContent='';el('search').value='';el('filter').value='all';el('number').value='';notify('');
+ el('logout').hidden=true;el('roster').hidden=true;el('loginPanel').hidden=false;el('password').value='';el('loginError').textContent=message;el('password').focus();
+}
+function describe(error,fallback){return error.code?error.message:fallback;}
+function render(){
+ const needle=el('search').value.trim().toLocaleLowerCase(), filter=el('filter').value;
+ const active=members.filter(m=>m.active).length;
+ el('counts').textContent=members.length+' 个学号 · '+active+' 个启用 · '+(members.length-active)+' 个停用';
+ const visible=members.filter(m=>(filter==='all'||m.active===(filter==='on'))&&[m.number,m.name].some(v=>String(v??'').toLocaleLowerCase().includes(needle)));
+ el('resultCount').hidden=!needle&&filter==='all';el('resultCount').textContent='匹配 '+visible.length+' 个学号';
+ const body=document.createDocumentFragment();
+ for(const item of visible){
+  const row=document.createElement('tr');
+  function cell(cls,txt){const c=row.insertCell();c.className=cls;c.textContent=txt;return c;}
+  cell('number',item.number??'待补全');
+  cell('name',item.name||'—').dataset.label='显示名';
+  cell('score',item.total==null?'—':String(item.total)+(item.pending?'（待自评）':'')).dataset.label='最高分';
+  const state=document.createElement('span');state.className='state'+(item.active?'':' off');state.textContent=item.active?'已启用':'已停用';cell('status','').append(state);
+  const actions=document.createElement('div');actions.className='actions';cell('operations','').append(actions);
+  if(item.number){for(const op of ['rename','alias',item.active?'pause':'resume']){
+   const b=document.createElement('button');b.type='button';b.textContent={rename:'改号',alias:'改显示名',pause:'停用',resume:'恢复'}[op];
+   b.setAttribute('aria-label',b.textContent+' '+item.number);if(op==='pause') b.className='pause';
+   b.addEventListener('click',()=>edit(op,item));actions.append(b);
+  }}
+  body.append(row);
+ }
+ el('members').replaceChildren(body);
+ el('empty').hidden=visible.length!==0;el('empty').textContent=members.length?'没有匹配的学号':'名单为空';
+}
+function adopt(data){
+ members=data.rows.slice().sort((a,b)=>String(a.number??'').localeCompare(String(b.number??''),'zh-CN',{numeric:true}));
+ render();
+ if(data.unmapped) notify('有 '+data.unmapped+' 个学号待补全，补全后即可编辑。');
+}
+el('loginForm').addEventListener('submit',async e=>{
+ e.preventDefault();if(el('signIn').disabled)return;
+ const candidate=el('password').value.trim();if(!candidate)return;
+ el('signIn').disabled=true;el('signIn').textContent='登录中…';el('loginError').textContent='';
+ try{
+  const data=await api({action:'list'},candidate);adopt(data);key=candidate;
+  el('password').value='';el('loginPanel').hidden=true;el('roster').hidden=false;el('logout').hidden=false;el('search').focus();
+ }catch(err){el('loginError').textContent=describe(err,'无法连接管理服务，请检查网络后重试。');}
+ finally{el('signIn').disabled=false;el('signIn').textContent='登录';}
+});
+async function refresh(success=''){
+ if(reading || !key)return;
+ const token=key;reading=true;el('refresh').disabled=true;el('refresh').textContent='刷新中…';
+ try{const data=await api({action:'list'});if(key!==token)return;notify(success);adopt(data);}
+ catch(err){if(key!==token)return;if(err.code==='unauthorized')logout(err.message);
+  else notify((success?success+' ':'')+'名单刷新失败，请重试。',true);}
+ finally{reading=false;el('refresh').disabled=false;el('refresh').textContent='刷新名单';}
+}
+el('logout').addEventListener('click',()=>logout());
+el('refresh').addEventListener('click',()=>refresh());
+el('search').addEventListener('input',render);el('filter').addEventListener('change',render);
+el('add').addEventListener('click',()=>edit('add'));
+function edit(op,item={}){
+ if(writing||reading)return;
+ currentEdit={op,item};const id=item.number, text={
+  add:['新增学号','添加后，该学号即可交卷并参与班级排名。','学号','添加'],
+  rename:['更正学号','原学号 '+id+' 的历史成绩会归入新学号，原学号将停止使用。','新学号','保存更正'],
+  alias:['修改榜单显示名','为 '+id+' 设置榜上显示名。留空会恢复最高分答卷填写的名字。','榜单显示名（选填）','保存显示名'],
+  pause:['停用学号','停用 '+id+' 后，该学号无法交卷，成绩从班级排名隐藏。历史成绩会保留。','','确认停用'],
+  resume:['恢复学号','恢复 '+id+' 后，该学号可以继续交卷，已有成绩重新参加排名。','','确认恢复']
+ }[op];
+ const needsInput=op==='add'||op==='rename'||op==='alias';el('editTitle').textContent=text[0];el('impact').textContent=text[1];
+ el('numberLabel').textContent=text[2];el('numberFields').hidden=!needsInput;el('number').required=needsInput&&op!=='alias';
+ el('number').maxLength=op==='alias'?40:32;el('number').autocapitalize=op==='alias'?'off':'characters';
+ el('number').placeholder=op==='alias'?(item.submittedName||'留空使用答卷显示名'):'';
+ el('number').value=op==='rename'?id:op==='alias'?(item.displayName||''):'';
+ el('editError').textContent='';el('save').textContent=text[3];el('save').className=op==='pause'?'destructive':'primary';
+ el('editor').showModal();if(needsInput){el('number').focus();el('number').select();}else el('cancel').focus();
+}
+el('cancel').addEventListener('click',()=>el('editor').close());
+el('editor').addEventListener('cancel',e=>{if(writing)e.preventDefault();});
+el('editor').addEventListener('close',()=>{currentEdit=null;el('number').value='';});
+el('editForm').addEventListener('submit',async e=>{
+ e.preventDefault();if(!currentEdit||writing)return;
+ const {op,item}=currentEdit, num=el('number').value.normalize('NFKC').trim().toUpperCase();
+ if(op==='add'||op==='rename'){
+  if(!/^[A-Z0-9][A-Z0-9_-]{0,31}$/.test(num)){el('editError').textContent=clientMessages.invalid_number;el('number').focus();return;}
+  if(op==='rename'&&num===item.number){el('editError').textContent='请填写新的学号。';el('number').focus();return;}
+ }
+ const displayName=el('number').value.trim();
+ let change,complete;
+ if(op==='add'){change={action:'add',number:num};complete='已添加 '+num+'。';}
+ else if(op==='rename'){change={action:'rename',number:item.number,newNumber:num};complete='已将 '+item.number+' 更正为 '+num+'。';}
+ else if(op==='alias'){change={action:'setDisplayName',number:item.number,displayName};complete=displayName?'已更新榜单显示名。':'已恢复答卷显示名。';}
+ else {change={action:'setActive',number:item.number,active:op==='resume'};complete=(op==='pause'?'已停用 ':'已恢复 ')+item.number+'。';}
+ writing=true;el('save').disabled=true;el('cancel').disabled=true;el('number').disabled=true;el('editError').textContent='';
+ try{
+  const result=await api(change);
+  if(result.ok!==true)throw new Error('未收到保存结果');
+  el('editor').close();await refresh(complete);
+ }catch(err){
+  if(err.code==='unauthorized')logout(err.message);
+  else el('editError').textContent=describe(err,'未能确认保存结果，请关闭此窗口并刷新名单核对。');
+ }finally{writing=false;el('save').disabled=false;el('cancel').disabled=false;el('number').disabled=false;}
+});
+</script>
+</body>
+</html>
