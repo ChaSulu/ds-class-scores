@@ -278,7 +278,56 @@ async function studentIdentity(input) {
   return {student,suffix:number.slice(Math.max(1, number.length-4))};
 }
 
-const visitPages = ['login','tf','mc','fill','code','essay','overview','history','ranking','submissions','result','review'];
+// Question IDs and points for version 1 of the shared practice bank.
+const practiceMaxPoints = new Map(Object.entries({
+  1: "BH001 BH002 BH003 BH004 BH005 BH006 BH007 BH008 BH011 BH013 BH014 BH015 BH016 BH017 BH018 BH019 BH020 BH021 BH022 BH023 BH024 BH025 BH026 BH027 BH028 BH029 BH031 BH032 BH033 BH034 BH035 BH036 BH037 BH038 BH039 BH040 BH041 BH042 BH043 BH044 BH045 BH047 BH048 BH049 BH051 BH052 BH053 BH057 BH059 BH060 BH061 BH062 BH063 BH064 BH065 BH066 BH067 BH068 BH072 BH073 BH074 BH082 BH083 BH084 BH085 BH086 BH087 BH088 BH089 BH090 BH091 BH092 BH094 BH095 BH096 BH097 BH101 BH102 BH103 BH104 BH105 BH106 BH109 BH110",
+  2: "BH009 BH046 BH050 BH054 BH058 BH100 BH107 BH108 BW052",
+  3: "BH010 BH012 BW076",
+  4: "BH069 BH071 BH076 BH077 BH079 BH081 BH098 BW072 BW074 BW075",
+  6: "BP001 BP002 BP003 BP004",
+  7: "BH078",
+  9: "BH075 BH080 BH099 BW077"
+}).flatMap(([points,ids])=>
+  ids.split(' ').map(id=>[id,Number(points)])));
+
+async function practiceComparison(db,room,input) {
+  const {action,paper}=input;
+  const ids=typeof paper==='string' ? paper.split('.') : [];
+  if (ids.shift()!=='v1' || !ids.length || ids.length>40 || new Set(ids).size!==ids.length ||
+      ids.some(id=>!practiceMaxPoints.has(id))) return json({error:'practice_paper'},400);
+  const maximum=ids.reduce((sum,id)=>sum+practiceMaxPoints.get(id),0);
+  const identity=await studentIdentity(input);
+  if (!identity) return json({error:'identity'},400);
+  const record=await db.prepare('SELECT '+membership).bind(room,room,identity.student).first();
+  const error=rosterError(record);
+  if (error) return error;
+  if (action==='practiceScore') {
+    const {attempt,revision,score,pending,ended}=input;
+    const name=typeof input.name==='string' ? input.name.trim() : '';
+    if (typeof attempt!=='string' || !/^[a-z0-9-]{5,65}$/.test(attempt) ||
+        !Number.isSafeInteger(revision) || revision<1 || !Number.isFinite(score) || score<0 || score>maximum ||
+        typeof pending!=='boolean' || !Number.isSafeInteger(ended) || ended<1 || ended>Date.now()+86400000 ||
+        name.length>40) return json({error:'score'},400);
+    await db.prepare(`INSERT INTO practice_scores(room,paper,student,attempt,revision,nickname,score,pending,ended)
+      SELECT ?,?,student,?,?,?,?,?,? FROM (${listedEntry}) WHERE true
+      ON CONFLICT(room,paper,student,attempt) DO UPDATE SET revision=excluded.revision,nickname=excluded.nickname,
+        score=excluded.score,pending=excluded.pending,ended=excluded.ended WHERE excluded.revision>practice_scores.revision`)
+      .bind(room,paper,attempt,revision,name || '同学',score,+pending,ended,room,identity.student).run();
+    return json({ok:true});
+  }
+  const {results}=await db.prepare(`WITH best AS (
+    SELECT s.student,r.number,COALESCE(r.display_name,s.nickname) AS name,s.score,s.ended,
+      row_number() OVER(PARTITION BY s.student ORDER BY s.score DESC,s.ended,s.attempt) AS choice
+    FROM practice_scores s JOIN roster r ON r.room=s.room AND r.student=s.student
+    WHERE s.room=? AND s.paper=? AND s.pending=0 AND r.active=1 AND r.removed=0)
+    SELECT name,substr(number,max(2,length(number)-3)) AS suffix,score,student=? AS mine,
+      rank() OVER(ORDER BY score DESC) AS place FROM best WHERE choice=1 ORDER BY score DESC,ended,student`)
+    .bind(room,paper,record.listed).all();
+  return json({maximum,rows:results});
+}
+
+const examPages = ['tf','mc','fill','code','essay','overview','history','ranking','submissions','result','review'];
+const visitPages = ['login','home','bank',...examPages,...examPages.map(page=>'bank-'+page),'bank-bankScores'];
 const visitIdPattern=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 
 async function recordVisit(db, room, input) {
@@ -425,6 +474,7 @@ async function ranking(request, env) {
   const room = await hash(input.room);
   if (!allowedRooms.includes(room) || (input.action === 'enter' && room !== allowedRooms[0])) return json({error:'room'}, 403);
   if (input.action==='visit') return recordVisit(env.DB,room,input);
+  if (input.action==='practiceScore' || input.action==='practiceBoard') return practiceComparison(env.DB,room,input);
   if (input.action === 'checkStudent' || input.action === 'enter') {
     const identity = await studentIdentity(input);
     if (!identity) return json({error:'identity'},400);

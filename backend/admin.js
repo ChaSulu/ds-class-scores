@@ -115,6 +115,8 @@ function showView(view) {
 
 const trafficClock=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
 const trafficPages={login:'学生登录',tf:'判断题',mc:'单选题',fill:'填空题',code:'编程题',essay:'主观题',overview:'试卷概览',history:'练习记录',ranking:'班级排名',submissions:'提交记录',result:'成绩',review:'核对答案'};
+for (const [key,label] of Object.entries(trafficPages)) trafficPages['bank-'+key]='题库抽练 · '+label;
+Object.assign(trafficPages,{home:'学生首页',bank:'题库组卷','bank-bankScores':'同卷成绩'});
 const trafficMetrics=['onlineStudents','onlineGuests','todayViews','todayStudents','totalViews'];
 function trafficScope() {
   if (!el('traffic').hidden) return el('trafficScope').value;
