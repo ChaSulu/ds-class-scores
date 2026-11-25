@@ -46,6 +46,12 @@ async function saveLoginCopy(db, room, input) {
 
 const announcementFields='id,title,body,status,updated_at AS updatedAt,published_at AS publishedAt';
 
+async function publishedAnnouncements(db,room) {
+  const {results}=await db.prepare(`SELECT id,title,body,published_at AS publishedAt FROM announcements
+    WHERE room=? AND status='published' ORDER BY published_at DESC,id DESC`).bind(room).all();
+  return results;
+}
+
 async function saveAnnouncement(db, room, input) {
   const {id,status,expectedUpdatedAt}=input;
   const title=typeof input.title==='string' ? input.title.trim() : '';
@@ -371,7 +377,8 @@ async function ranking(request, env) {
     if (error) return error;
     if (input.action === 'checkStudent') return json({rosterVerified:true});
     if (examContentKey.length !== 43) return json({error:'entry_unavailable'},503);
-    return json({rosterVerified:true,participant:record.listed,contentKey:examContentKey});
+    const announcements=await publishedAnnouncements(env.DB,room);
+    return json({rosterVerified:true,participant:record.listed,contentKey:examContentKey,announcements});
   }
   if (input.action === 'list' || input.action === 'standings') {
     const { results } = await env.DB.prepare(bestScores).bind(room).all();
@@ -417,9 +424,7 @@ export default {
     if (request.method==='GET' && path.endsWith('/api/login-copy')) {
       response=json(await readLoginCopy(env.DB,allowedRooms[0]));
     } else if (request.method==='GET' && path.endsWith('/api/announcements')) {
-      const {results}=await env.DB.prepare(`SELECT id,title,body,published_at AS publishedAt FROM announcements
-        WHERE room=? AND status='published' ORDER BY published_at DESC,id DESC`).bind(allowedRooms[0]).all();
-      response=json({items:results});
+      response=json({items:await publishedAnnouncements(env.DB,allowedRooms[0])});
     } else if (request.method==='POST' && path.endsWith('/api/ranking')) {
       response=await ranking(request,env);
     } else {
