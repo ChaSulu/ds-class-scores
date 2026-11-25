@@ -3,6 +3,7 @@
 const el = id => document.getElementById(id);
 const board = new URLSearchParams(location.search).get('board') === 'qa' ? 'qa' : 'class';
 const endpoint = location.pathname.replace(/\/$/, '') + '/api';
+const deviceStateKey = 'ds.admin.device.v1.' + endpoint;
 const collator = new Intl.Collator('zh-CN', {numeric: true});
 const formatScore = new Intl.NumberFormat('zh-CN', {maximumFractionDigits: 2});
 const formatAverage = new Intl.NumberFormat('zh-CN', {maximumFractionDigits: 1});
@@ -30,6 +31,7 @@ const clientMessages = {
   admin_unavailable: '管理服务暂时不可用，请稍后重试。'
 };
 let session = null;
+let loginVersion = 0;
 let currentEdit = null;
 let rosterPage = 1;
 let rankPage = 1;
@@ -57,10 +59,10 @@ function notify(message, error = false) {
   setText('message', message);
   el('message').classList.toggle('error', error);
 }
-async function api(body, token) {
+async function api(body, token, credentials = 'same-origin') {
   const response = await fetch(endpoint, {
-    method: 'POST', credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer',
-    headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+    method: 'POST', credentials, cache: 'no-store', referrerPolicy: 'no-referrer',
+    headers: token ? {'Content-Type':'application/json', Authorization:'Bearer ' + token} : {'Content-Type':'application/json'},
     body: JSON.stringify({board, ...body}), signal: AbortSignal.timeout(20000)
   });
   const result = await response.json();
@@ -600,7 +602,12 @@ function setRefreshBusy(busy) {
   el('refresh').disabled = busy;
   el('refresh').setAttribute('aria-busy', String(busy));
 }
-function logout(message = '') {
+function logout(message = '', keepView = false) {
+  if (message === clientMessages.unauthorized && session && !session.token) {
+    if (deviceState() === 'remembered') setDeviceState(null);
+    message = '设备登录已失效，请重新输入管理口令。';
+  }
+  loginVersion++;
   session = null;
   members = [];
   selected.clear();
@@ -631,6 +638,8 @@ function logout(message = '') {
     'rankPageInfo', 'empty', 'rankEmpty']) setText(id, '');
   el('participationRing').style.removeProperty('--progress');
   for (const id of ['password', 'search', 'rankSearch']) el(id).value = '';
+  el('rememberDevice').checked = false;
+  setLoginBusy(false);
   for (const id of ['filter', 'rankFilter']) el(id).value = 'all';
   el('pageSize').value = '15';
   setPasswordVisible(false);
@@ -638,39 +647,117 @@ function logout(message = '') {
   el('workspace').hidden = true;
   el('loginPanel').hidden = false;
   mobileMenu(false);
-  history.replaceState(null, '', location.pathname + location.search);
+  if (!keepView) history.replaceState(null, '', location.pathname + location.search);
   setText('loginError', message);
   el('password').focus();
 }
 function mappingNotice(data) {
   return data.unmapped ? '有 ' + data.unmapped + ' 个学号待补全，补全后即可编辑。' : '';
 }
+function deviceState() {
+  try { return localStorage.getItem(deviceStateKey); }
+  catch { return null; }
+}
+function setDeviceState(value) {
+  if (value) localStorage.setItem(deviceStateKey, value);
+  else localStorage.removeItem(deviceStateKey);
+}
+function deviceLock(action) {
+  return navigator.locks ? navigator.locks.request(deviceStateKey, action) : action();
+}
+async function revokePending() {
+  if (!['enrolling','logout'].includes(deviceState())) return;
+  await api({action:'deviceLogout'});
+  setDeviceState(null);
+}
+async function finishLogout() {
+  try {
+    await deviceLock(revokePending);
+    if (!session && !deviceState()) setText('loginError','');
+  } catch {
+    if (!session) setText('loginError','本机后台已锁定。联网后会自动完成退出。');
+  }
+}
+function setLoginBusy(busy) {
+  el('signIn').disabled = busy;
+  el('signIn').setAttribute('aria-busy', String(busy));
+}
+function enterWorkspace(data, token) {
+  session = {token, reading:false, writing:false};
+  adopt(data);
+  el('password').value = '';
+  setPasswordVisible(false);
+  notify(mappingNotice(data));
+  el('loginPanel').hidden = true;
+  el('workspace').hidden = false;
+  const requested = location.hash.slice(1);
+  const view = Object.hasOwn(pages,requested) && (requested !== 'loginCopy' || board === 'class') ? requested : 'overview';
+  history.replaceState(null, '', '#' + view);
+  showView(view);
+  el('pageTitle').focus();
+}
+async function restoreDevice() {
+  if (session || el('signIn').disabled) return;
+  const state = deviceState();
+  if (state === 'logout' || state === 'enrolling') { await finishLogout(); return; }
+  if (state !== 'remembered') return;
+  const version = ++loginVersion;
+  try {
+    const data = await api({action:'list'});
+    if (version === loginVersion && deviceState() === 'remembered') enterWorkspace(data,null);
+  } catch (error) {
+    if (version !== loginVersion) return;
+    if (error.code === 'unauthorized') {
+      setDeviceState(null);
+      setText('loginError','设备登录已失效，请重新输入管理口令。');
+    } else setText('loginError','暂时无法恢复登录，请检查网络后重试。');
+  }
+}
 el('loginForm').addEventListener('submit', async event => {
   event.preventDefault();
   const token = el('password').value.trim();
   if (!token || el('signIn').disabled) return;
-  el('signIn').disabled = true;
-  el('signIn').setAttribute('aria-busy', 'true');
+  const version = ++loginVersion;
+  const remember = el('rememberDevice').checked;
+  setLoginBusy(true);
   setText('loginError', '');
   try {
-    const data = await api({action: 'list'}, token);
-    adopt(data);
-    session = {token, reading: false, writing: false};
-    el('password').value = '';
-    setPasswordVisible(false);
-    notify(mappingNotice(data));
-    el('loginPanel').hidden = true;
-    el('workspace').hidden = false;
-    const view = location.hash === '#announcements' ? 'announcements'
-      : location.hash === '#loginCopy' && board === 'class' ? 'loginCopy' : 'overview';
-    history.replaceState(null, '', '#' + view);
-    showView(view);
-    el('pageTitle').focus();
+    const data = await deviceLock(async () => {
+      await revokePending();
+      if (version !== loginVersion) return;
+      if (!remember) {
+        const data = await api({action:'list'}, token);
+        if (version === loginVersion && deviceState() === 'remembered') {
+          setDeviceState('logout');
+          await revokePending();
+        }
+        return data;
+      }
+      // Record the intent before issuing a cookie so an interrupted login can be revoked.
+      setDeviceState('enrolling');
+      let issued = false;
+      try {
+        await api({action:'deviceLogin'}, token);
+        issued = true;
+        const data = await api({action:'list'});
+        if (version === loginVersion && deviceState() === 'enrolling') {
+          setDeviceState('remembered');
+          return data;
+        }
+        await revokePending();
+      } catch (error) {
+        try { await revokePending(); } catch { /* Revoke on reconnection or next visit. */ }
+        if (issued && error.code === 'unauthorized') {
+          throw Object.assign(new Error('浏览器未能保存设备登录。请允许 Cookie，或取消勾选后登录。'), {code:'cookie_unavailable'});
+        }
+        throw error;
+      }
+    });
+    if (data && version === loginVersion) enterWorkspace(data, remember ? null : token);
   } catch (error) {
-    setText('loginError', error.code ? error.message : '无法连接管理服务，请检查网络后重试。');
+    if (version === loginVersion) setText('loginError', error.code ? error.message : '登录未完成。请检查网络，或取消记住设备后重试。');
   } finally {
-    el('signIn').disabled = false;
-    el('signIn').setAttribute('aria-busy', 'false');
+    if (version === loginVersion) setLoginBusy(false);
   }
 });
 async function refresh(success = '', rankingOnly = false) {
@@ -701,9 +788,25 @@ function pollRanking() {
   }
 }
 document.addEventListener('visibilitychange', pollRanking);
-el('logout').addEventListener('click', () => logout());
+el('logout').addEventListener('click', async () => {
+  const remembered = session && !session.token;
+  logout();
+  if (remembered) {
+    setDeviceState('logout');
+    await finishLogout();
+  } else {
+    // A PIN-only tab has no device session of its own to revoke.
+    await api({action:'deviceLogout'}, null, 'omit').catch(() => {});
+  }
+});
 el('refresh').addEventListener('click', () => { if (session && !session.writing) refresh(); });
-window.addEventListener('pagehide', () => { if (session) logout(); });
+window.addEventListener('pagehide', () => logout('',true));
+window.addEventListener('pageshow', () => { void restoreDevice(); });
+window.addEventListener('online', () => { void restoreDevice(); });
+window.addEventListener('storage', event => {
+  if ((event.key === deviceStateKey || event.key === null) && deviceState() !== 'remembered' &&
+      (session && !session.token || el('signIn').disabled)) logout();
+});
 for (const [id, event] of [['search', 'input'], ['filter', 'change'], ['pageSize', 'change']]) {
   el(id).addEventListener(event, () => {
     rosterPage = 1;

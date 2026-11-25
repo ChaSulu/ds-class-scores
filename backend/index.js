@@ -111,9 +111,7 @@ async function hydrate(db, room, input) {
   return adminJson({ok:true,total,mapped,unmapped:total-mapped});
 }
 
-async function manage(request, db) {
-  if (request.method!=='POST') return adminError('method',405);
-  if (!/^[\da-f]{64}$/.test(adminVerifier)) return adminError('admin_unavailable',503);
+async function checkAdminBearer(request, db) {
   const bearer=request.headers.get('Authorization')?.match(/^Bearer (\d{6}|[A-Za-z0-9_-]{40,128})$/i);
   if (!bearer) return adminError('unauthorized',401);
   const valid=await hash(bearer[1])===adminVerifier;
@@ -131,7 +129,37 @@ async function manage(request, db) {
       ]);
     }
   }
-  if (!valid) return adminError('unauthorized',401);
+  return valid ? null : adminError('unauthorized',401);
+}
+
+const deviceLifetime=30*24*60*60;
+const deviceCookieName='__Secure-ds_admin_device';
+const deviceDigest=token=>hash('admin-device-v1:'+adminVerifier+':'+token);
+
+function deviceResponse(token, seconds) {
+  const response=adminJson({ok:true});
+  response.headers.set('Set-Cookie',deviceCookieName+'='+token+'; Path=/ds-class-scores/admin; Max-Age='+seconds+'; Secure; HttpOnly; SameSite=Strict');
+  return response;
+}
+
+async function rememberAdmin(db, oldDigest) {
+  const token=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');
+  const now=Date.now();
+  await db.batch([
+    db.prepare('DELETE FROM admin_devices WHERE expires_at<=? OR digest=?').bind(now,oldDigest),
+    db.prepare('INSERT INTO admin_devices(digest,expires_at) VALUES(?,?)').bind(await deviceDigest(token),now+deviceLifetime*1000)
+  ]);
+  return deviceResponse(token,deviceLifetime);
+}
+
+async function manage(request, db) {
+  if (request.method!=='POST') return adminError('method',405);
+  if (!/^[\da-f]{64}$/.test(adminVerifier)) return adminError('admin_unavailable',503);
+  const hasBearer=request.headers.has('Authorization');
+  if (hasBearer) {
+    const error=await checkAdminBearer(request,db);
+    if (error) return error;
+  }
   if (request.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase()!=='application/json')
     return adminError('invalid_request',415);
   const origin=request.headers.get('Origin');
@@ -143,6 +171,19 @@ async function manage(request, db) {
   try {input=JSON.parse(raw);} catch {return adminError('invalid_request',400);}
   const room=input?.board==='class'?allowedRooms[0]:input?.board==='qa'?allowedRooms[1]:null;
   if (!room) return adminError('invalid_request',400);
+
+  if (!hasBearer || input.action==='deviceLogin' || input.action==='deviceLogout') {
+    const cookie=request.headers.get('Cookie')?.split(';').map(part=>part.trim()).find(part=>part.startsWith(deviceCookieName+'='));
+    const token=cookie?.slice(deviceCookieName.length+1);
+    const digest=token && /^[a-f0-9]{64}$/.test(token) ? await deviceDigest(token) : null;
+    if (input.action==='deviceLogout') {
+      if (digest) await db.prepare('DELETE FROM admin_devices WHERE digest=?').bind(digest).run();
+      return deviceResponse('',0);
+    }
+    if (input.action==='deviceLogin') return hasBearer ? rememberAdmin(db,digest) : adminError('unauthorized',401);
+    if (!digest || !await db.prepare('SELECT 1 FROM admin_devices WHERE digest=? AND expires_at>?').bind(digest,Date.now()).first())
+      return adminError('unauthorized',401);
+  }
 
   if (input.action==='loginCopyGet') return adminJson(await readLoginCopy(db,room));
   if (input.action==='loginCopySave') return saveLoginCopy(db,room,input.value);

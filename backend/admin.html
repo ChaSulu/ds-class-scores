@@ -28,6 +28,7 @@
     <form id="loginForm">
       <label for="password">管理口令</label>
       <div class="password-control"><input type="password" id="password" autocomplete="current-password" placeholder="输入管理口令" required><button type="button" id="showPassword" class="icon-button" aria-label="显示口令" aria-pressed="false"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.4-6.5 10-6.5S22 12 22 12s-3.4 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg></button></div>
+      <label class="remember-device" for="rememberDevice"><input id="rememberDevice" type="checkbox" autocomplete="off">记住这台设备（30天）</label>
       <p id="loginError" class="notice error" role="alert"></p>
       <button class="primary login-submit" type="submit" id="signIn">登录</button>
     </form>
