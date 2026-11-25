@@ -103,10 +103,18 @@ async function manage(request, db) {
   if (input.action==='list') {
     const {results}=await db.prepare(`SELECT r.student AS id,r.number,r.active,r.real_name AS realName,r.display_name AS displayName,p.nickname AS submittedName,
       COALESCE(r.display_name,p.nickname) AS name,p.total,p.pending,
-      ROW_NUMBER() OVER (ORDER BY p.ended,r.student) AS tieOrder
+      ROW_NUMBER() OVER (ORDER BY p.ended,r.student) AS tieOrder,
+      CASE WHEN a.student IS NOT NULL THEN json_object(
+        'status',CASE WHEN a.ended IS NULL THEN 'working' WHEN a.pending>0 THEN 'pending' ELSE 'graded' END,
+        'started',json_extract(a.progress,'$.started'),'updated',json_extract(a.progress,'$.updated'),
+        'ended',a.ended,'pending',a.pending,'total',a.total,'scores',json(a.scores),
+        'groups',json_extract(a.progress,'$.groups'),'outcomes',json_extract(a.progress,'$.outcomes')
+      ) END AS latest
       FROM roster r LEFT JOIN best_papers p ON p.room=r.room AND p.student=r.student
+      LEFT JOIN latest_papers a ON a.room=r.room AND a.student=r.student
       WHERE r.room=? AND r.removed=0 ORDER BY r.number IS NULL,r.number`).bind(room).all();
-    return adminJson({rows:results.map(row=>({...row,active:!!row.active})),unmapped:results.filter(r=>r.number===null).length});
+    return adminJson({rows:results.map(row=>({...row,active:!!row.active,latest:JSON.parse(row.latest)})),
+      unmapped:results.filter(r=>r.number===null).length});
   }
   const number=normalizedNumber(input.number);
   if (!number) return adminError('invalid_number',400);
@@ -168,7 +176,54 @@ async function studentIdentity(input) {
   return {student,suffix:number.slice(Math.max(1, number.length-4))};
 }
 
-async function publishStudent(db, room, input, device, total) {
+function paperProgress(input) {
+  const {started, progress} = input;
+  const {updated,groups,outcomes} = progress || {};
+  if (!Number.isSafeInteger(started) || started<=0 || !Number.isSafeInteger(updated) ||
+      updated<started || updated>Date.now()+86400000 || !Array.isArray(groups) || groups.length!==caps.length) return null;
+  const count=value=>Number.isSafeInteger(value) && value>=0;
+  const clean=[];
+  let questions=0;
+  for (const group of groups) {
+    const {total,answered,partial}=group || {};
+    if (![total,answered,partial].every(count) || answered+partial>total) return null;
+    questions+=total;
+    clean.push({total,answered,partial});
+  }
+  if (!Number.isSafeInteger(questions) || !questions) return null;
+  const snapshot={started,updated,groups:clean};
+  if (outcomes!==undefined) {
+    if (input.action!=='publish' || !outcomes) return null;
+    const {correct,partScore,incorrect,pending,blank}=outcomes;
+    const counts=[correct,partScore,incorrect,pending,blank];
+    if (!counts.every(count) || counts.reduce((a,b)=>a+b,0)!==questions || pending!==input.pending) return null;
+    snapshot.outcomes={correct,partScore,incorrect,pending,blank};
+  }
+  return JSON.stringify(snapshot);
+}
+
+async function recordDraft(db, room, input, device, progress) {
+  const identity=await studentIdentity(input);
+  if (!identity) return json({error:'identity'},400);
+  const {student}=identity, {paper,revision}=input;
+  const completed='SELECT student FROM attempts WHERE room=? AND participant=? AND paper=? AND student IS NOT NULL';
+  const [,check]=await db.batch([
+    db.prepare(`INSERT INTO paper_drafts(room,participant,paper,student,revision,progress)
+      SELECT ?,?,?,student,?,? FROM (${listedEntry}) WHERE NOT EXISTS (${completed})
+      ON CONFLICT(room,participant,paper) DO UPDATE SET
+        student=excluded.student,revision=excluded.revision,progress=excluded.progress
+      WHERE excluded.revision>paper_drafts.revision`)
+      .bind(room,device,paper,revision,progress,room,student,room,device,paper),
+    db.prepare(`SELECT ${membership}, COALESCE((${completed}),
+      (SELECT student FROM paper_drafts WHERE room=? AND participant=? AND paper=?)) AS bound`)
+      .bind(room,room,student,room,device,paper,room,device,paper)
+  ]);
+  const record=check.results[0];
+  return rosterError(record) || (record.bound!==record.listed ? json({error:'paper_bound'},409) :
+    json({participant:record.listed,rosterVerified:true}));
+}
+
+async function publishStudent(db, room, input, device, total, progress) {
   const identity = await studentIdentity(input);
   const name = (typeof input.name==='string' ? input.name.normalize('NFKC').trim().replace(/\s+/gu,' ') : '') || '同学';
   if (!identity || name.length>40) return json({error:'identity'},400);
@@ -182,18 +237,23 @@ async function publishStudent(db, room, input, device, total) {
     db.prepare(`UPDATE attempts SET student=(${listedEntry}),nickname=? WHERE room=? AND participant=? AND paper=?
       AND NOT EXISTS (SELECT 1 FROM roster r WHERE r.room=attempts.room AND r.student=attempts.student)
       AND EXISTS (${listedEntry})`).bind(room,student,name,room,device,paper,room,student),
-    db.prepare(`INSERT INTO attempts(room,participant,paper,revision,nickname,scores,total,pending,ended,student)
-      SELECT ?,?,?,?,?,?,?,?,?,student FROM (${listedEntry}) WHERE 1
+    db.prepare(`INSERT INTO attempts(room,participant,paper,revision,nickname,scores,total,pending,ended,progress,student)
+      SELECT ?,?,?,?,?,?,?,?,?,?,student FROM (${listedEntry}) WHERE 1
       ON CONFLICT(room,participant,paper) DO UPDATE SET
-        revision=excluded.revision,nickname=excluded.nickname,scores=excluded.scores,total=excluded.total,pending=excluded.pending
+        revision=excluded.revision,nickname=excluded.nickname,scores=excluded.scores,total=excluded.total,pending=excluded.pending,
+        progress=COALESCE(excluded.progress,json_remove(attempts.progress,'$.outcomes'))
       WHERE attempts.student=excluded.student AND attempts.revision<excluded.revision`)
-      .bind(room,device,paper,revision,name,JSON.stringify(scores),total,pending,ended,room,student),
+      .bind(room,device,paper,revision,name,JSON.stringify(scores),total,pending,ended,progress,room,student),
+    db.prepare(`DELETE FROM paper_drafts WHERE room=? AND participant=? AND paper=?
+      AND EXISTS (SELECT 1 FROM attempts a WHERE a.room=paper_drafts.room
+        AND a.participant=paper_drafts.participant AND a.paper=paper_drafts.paper AND a.student IS NOT NULL)`)
+      .bind(room,device,paper),
     db.prepare(`SELECT ${membership},
       (SELECT student FROM attempts WHERE room=? AND participant=? AND paper=?) AS bound`)
       .bind(room,room,student,room,device,paper)
   ];
   const result = await db.batch(statements);
-  const record = result[3].results[0];
+  const record = result[4].results[0];
   const error = rosterError(record);
   if (error) return error;
   if (record.bound!==record.listed) return json({error:'paper_bound'},409);
@@ -226,20 +286,26 @@ export default {
       const { results } = await env.DB.prepare(bestScores).bind(room).all();
       return json({rows: results.map(row => ({...row, scores:JSON.parse(row.scores)}))});
     }
-    if (input.action !== 'submit' && input.action !== 'publish') return json({error:'action'}, 400);
+    if (!['submit','publish','progress'].includes(input.action)) return json({error:'action'}, 400);
     const {key, paper, revision, nickname, scores, pending, ended} = input;
     if (typeof key !== 'string' || !/^[a-f0-9]{64}$/.test(key) ||
         typeof paper !== 'string' || !/^[a-z0-9-]{5,65}$/.test(paper) ||
-        !Number.isSafeInteger(revision) || revision < 1 ||
-        (input.action==='submit' && (typeof nickname !== 'string' || !nickname.trim() || nickname.length > 24)) ||
+        !Number.isSafeInteger(revision) || revision < 1) return json({error:input.action==='progress'?'progress':'score'},400);
+    const participant = await hash(key);
+    let progress=null;
+    if (input.action==='progress' || (input.action==='publish' && input.progress!==undefined)) {
+      progress=paperProgress(input);
+      if (!progress) return json({error:'progress'},400);
+      if (input.action==='progress') return recordDraft(env.DB,room,input,participant,progress);
+    }
+    if ((input.action==='submit' && (typeof nickname !== 'string' || !nickname.trim() || nickname.length > 24)) ||
         !Array.isArray(scores) || scores.length !== caps.length ||
         !scores.every((n,i) => Number.isFinite(n) && n >= 0 && n <= caps[i]) ||
         !Number.isInteger(pending) || pending < 0 || pending > 8 ||
         !Number.isSafeInteger(ended) || ended < 1 || ended > Date.now() + 86400000)
       return json({error:'score'}, 400);
-    const participant = await hash(key);
     const total = Math.round(scores.reduce((a,b) => a+b, 0) * 100) / 100;
-    if (input.action==='publish') return publishStudent(env.DB, room, input, participant, total);
+    if (input.action==='publish') return publishStudent(env.DB, room, input, participant, total, progress);
     await env.DB.prepare(`INSERT INTO attempts (room,participant,paper,revision,nickname,scores,total,pending,ended)
       VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(room,participant,paper) DO UPDATE SET
       revision=excluded.revision,nickname=excluded.nickname,scores=excluded.scores,total=excluded.total,pending=excluded.pending

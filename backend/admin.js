@@ -6,10 +6,14 @@ const endpoint = location.pathname.replace(/\/$/, '') + '/api';
 const collator = new Intl.Collator('zh-CN', {numeric: true});
 const formatScore = new Intl.NumberFormat('zh-CN', {maximumFractionDigits: 2});
 const formatAverage = new Intl.NumberFormat('zh-CN', {maximumFractionDigits: 1});
+const attemptClock = new Intl.DateTimeFormat('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false});
+const attemptStates = {working: '答题中', pending: '已交卷待自评', graded: '已评分', none: '暂无记录'};
+const questionTypes = ['判断题', '单选题', '填空题', '编程题', '主观题'];
+const outcomeLabels = {correct:'正确', partScore:'部分得分', incorrect:'错误', pending:'待自评', blank:'未答'};
 const pages = {
   overview: ['管理概览', '查看班级交卷进度和成绩分布。'],
   roster: ['学号名单', '核对真实姓名，勾选学号可批量管理。'],
-  ranking: ['成绩排名', '按学号查成绩，或筛选待自评的答卷。']
+  ranking: ['成绩排名', '查看全班作答进度，按最近答卷状态筛选。']
 };
 const clientMessages = {
   unauthorized: '管理口令无效，请重新输入。',
@@ -28,6 +32,8 @@ let rosterPage = 1;
 let rankPage = 1;
 let members = [];
 let ranked = [];
+let expandedStudent = null;
+let rankTimer;
 const selected = new Map();
 
 function setText(id, text) { el(id).textContent = text; }
@@ -70,6 +76,12 @@ function mobileMenu(open) {
 }
 function showView(view) {
   if (!Object.hasOwn(pages, view)) view = 'overview';
+  clearInterval(rankTimer);
+  if (view === 'ranking') rankTimer = setInterval(pollRanking, 15000);
+  else if (session?.reading?.rankingOnly) {
+    session.reading = false;
+    setRefreshBusy(false);
+  }
   for (const id of Object.keys(pages)) el(id).hidden = id !== view;
   document.querySelectorAll('#sidebar [data-view]').forEach(button => {
     const active = button.dataset.view === view;
@@ -204,33 +216,133 @@ function renderRoster() {
   el('empty').hidden = matching.length > 0;
   setText('empty', members.length ? '没有匹配的学号' : '名单为空');
 }
+function appendAttemptDetails(body, latest) {
+  const row = document.createElement('tr');
+  row.className = 'attempt-detail';
+  const content = row.insertCell();
+  content.colSpan = 7;
+  content.id = 'rankAttemptDetails';
+  const heading = element('div', 'attempt-heading', '');
+  heading.append(element('strong', '', '最近答卷详情'));
+  if (latest.total != null) {
+    const label = latest.status === 'pending' ? '暂计 ' : '本次得分 ';
+    heading.append(element('span', '', label + formatScore.format(latest.total) + ' 分'));
+  }
+  content.append(heading);
+  if (latest.groups || latest.scores) {
+    const breakdown = element('dl', 'type-breakdown', '');
+    questionTypes.forEach((label, index) => {
+      const group = latest.groups?.[index];
+      const score = latest.scores?.[index];
+      const block = element('div', '', '');
+      block.append(element('dt', '', label));
+      if (group) {
+        block.append(element('dd', '', '已答 ' + group.answered + ' / ' + group.total + ' 题'));
+        if (group.partial) block.append(element('dd', 'part-count', '部分作答 ' + group.partial + ' 题'));
+      }
+      if (score != null) block.append(element('dd', 'type-score', '得分 ' + formatScore.format(score)));
+      breakdown.append(block);
+    });
+    content.append(breakdown);
+  }
+  if (latest.outcomes) {
+    const outcomes = element('div', 'outcome-list', '');
+    for (const [key, label] of Object.entries(outcomeLabels)) {
+      outcomes.append(element('span', '', label + ' ' + latest.outcomes[key] + ' 题'));
+    }
+    content.append(outcomes);
+  } else if (!latest.groups) {
+    content.append(element('p', 'attempt-note', '这份答卷未记录作答题数和逐题判定。'));
+  }
+  body.append(row);
+}
+
+function appendProgressCells(row, item) {
+  const latest = item.latest;
+  const state = latest?.status || 'none';
+  const status = cell(row, 'status', '', '最近答卷状态');
+  const badgeStyle = {none:'off', working:'working', pending:'pending', graded:''}[state];
+  status.append(element('span', 'state ' + badgeStyle, attemptStates[state]));
+  if (latest?.pending && state === 'pending') status.append(element('small', 'attempt-meta', latest.pending + ' 题待自评'));
+  const time = latest?.updated ?? latest?.ended;
+  if (time != null) {
+    const timestamp = element('time', 'attempt-meta', (latest.updated == null ? '交卷 ' : '更新 ') + attemptClock.format(time));
+    timestamp.dateTime = new Date(time).toISOString();
+    timestamp.title = new Date(time).toLocaleString('zh-CN');
+    status.append(timestamp);
+  }
+  const progress = cell(row, 'answer-progress', '', '答题进度');
+  if (!latest) {
+    progress.textContent = '—';
+    return;
+  }
+  if (latest.groups) {
+    let answered = 0, partial = 0, total = 0;
+    for (const group of latest.groups) {
+      answered += group.answered;
+      partial += group.partial;
+      total += group.total;
+    }
+    progress.append(element('span', 'answer-count', '已答 ' + answered + ' / ' + total + ' 题'));
+    if (total) {
+      const bar = document.createElement('progress');
+      bar.max = total;
+      bar.value = answered;
+      bar.setAttribute('aria-label', '完整作答题数');
+      progress.append(bar);
+    }
+    if (partial) progress.append(element('small', 'part-count', '另有 ' + partial + ' 题部分作答'));
+  } else progress.append(element('span', 'attempt-meta', '题数未记录'));
+  const open = expandedStudent === item.id;
+  const toggle = element('button', 'attempt-toggle', open ? '收起详情' : '查看详情');
+  toggle.type = 'button';
+  toggle.dataset.student = item.id;
+  toggle.setAttribute('aria-expanded', String(open));
+  toggle.setAttribute('aria-label', toggle.textContent + ' ' + (item.number || item.name || ''));
+  if (open) toggle.setAttribute('aria-controls', 'rankAttemptDetails');
+  toggle.addEventListener('click', () => {
+    expandedStudent = open ? null : item.id;
+    renderRanking();
+  });
+  progress.append(toggle);
+}
+
 function renderRanking() {
   const filter = el('rankFilter').value;
   const needle = el('rankSearch').value.trim().toLowerCase();
-  const visible = ranked.filter(({item, rank}) =>
-    (filter === 'all' || (filter === 'graded' ? rank !== null : rank === null)) && matches(item, needle));
+  const graded = ranked.filter(entry => entry.rank !== null);
+  const unranked = members.filter(item => item.active && (item.total == null || item.pending))
+    .sort((a, b) => (b.latest?.updated ?? b.latest?.ended ?? 0) - (a.latest?.updated ?? a.latest?.ended ?? 0));
+  const visible = graded.concat(unranked.map(item => ({item, rank:null}))).filter(({item}) =>
+    (filter === 'all' || (item.latest?.status || 'none') === filter) && matches(item, needle));
   const pageSize = 15;
   const pages = Math.max(1, Math.ceil(visible.length / pageSize));
   rankPage = Math.min(rankPage, pages);
   const first = (rankPage - 1) * pageSize;
   const body = document.createDocumentFragment();
-  for (const {item, rank} of visible.slice(first, first + pageSize)) {
+  const focused = document.activeElement?.dataset.student;
+  const page = visible.slice(first, first + pageSize);
+  if (!page.some(({item}) => item.id === expandedStudent)) expandedStudent = null;
+  for (const {item, rank} of page) {
     const row = document.createElement('tr');
+    row.className = 'rank-entry';
     cell(row, 'position', rank ?? '—', '排名');
     cell(row, 'number', item.number ?? '待补全', '学号');
     cell(row, 'real-name', item.realName || '—', '真实姓名');
     cell(row, 'name', item.name || '—', '显示名');
-    cell(row, 'score', formatScore.format(item.total), '最高分');
-    cell(row, 'status', '', '评分状态').append(element('span', rank === null ? 'state pending' : 'state', rank === null ? '待自评' : '已评分'));
+    cell(row, 'score', rank === null ? '—' : formatScore.format(item.total), '最高分');
+    appendProgressCells(row, item);
     body.append(row);
+    if (item.latest && expandedStudent === item.id) appendAttemptDetails(body, item.latest);
   }
   el('rankRows').replaceChildren(body);
-  setText('rankResultCount', '共 ' + visible.length + ' 条成绩');
+  if (focused) [...el('rankRows').querySelectorAll('.attempt-toggle')].find(button => button.dataset.student === focused)?.focus({preventScroll:true});
+  setText('rankResultCount', '共 ' + visible.length + ' 人');
   setText('rankPageInfo', '第 ' + rankPage + ' / ' + pages + ' 页');
   el('rankPrev').disabled = rankPage === 1;
   el('rankNext').disabled = rankPage === pages;
   el('rankEmpty').hidden = visible.length > 0;
-  setText('rankEmpty', ranked.length ? '没有匹配的成绩' : '暂无已交卷成绩');
+  setText('rankEmpty', members.some(item => item.active) ? '没有符合条件的学号' : '暂无启用学号');
 }
 function renderOverview() {
   const active = members.filter(item => item.active).length;
@@ -246,7 +358,7 @@ function renderOverview() {
   setText('participationPercent', percent + '%');
   setText('partSubmitted', submitted);
   setText('partMissing', active - submitted);
-  setText('partPending', submitted - graded.length);
+  setText('partPending', members.filter(item => item.active && item.latest?.status === 'pending').length);
   const bins = [0, 0, 0, 0, 0];
   for (const {item} of graded) {
     const score = item.total;
@@ -320,6 +432,8 @@ function logout(message = '') {
   selected.clear();
   showSelection([], []);
   ranked = [];
+  expandedStudent = null;
+  clearInterval(rankTimer);
   rosterPage = 1;
   rankPage = 1;
   if (el('editor').open) el('editor').close();
@@ -372,27 +486,34 @@ el('loginForm').addEventListener('submit', async event => {
     el('signIn').setAttribute('aria-busy', 'false');
   }
 });
-async function refresh(success = '') {
+async function refresh(success = '', rankingOnly = false) {
   const owner = session;
   if (!owner || owner.reading) return;
-  owner.reading = true;
+  const request = {rankingOnly};
+  owner.reading = request;
   setRefreshBusy(true);
   try {
     const data = await api({action: 'list'}, owner.token);
-    if (owner !== session) return;
+    if (owner !== session || owner.reading !== request) return;
     adopt(data);
     notify([success, mappingNotice(data)].filter(Boolean).join(' '));
   } catch (error) {
-    if (owner !== session) return;
+    if (owner !== session || owner.reading !== request) return;
     if (error.code === 'unauthorized') logout(error.message);
     else notify(success + ' 数据刷新失败，请重新刷新。', true);
   } finally {
-    if (owner === session) {
+    if (owner === session && owner.reading === request) {
       owner.reading = false;
       setRefreshBusy(false);
     }
   }
 }
+function pollRanking() {
+  if (session && !session.writing && !document.hidden && !el('ranking').hidden && !el('editor').open) {
+    void refresh('', true);
+  }
+}
+document.addEventListener('visibilitychange', pollRanking);
 el('logout').addEventListener('click', () => logout());
 el('refresh').addEventListener('click', () => { if (session && !session.writing) refresh(); });
 window.addEventListener('pagehide', () => { if (session) logout(); });
