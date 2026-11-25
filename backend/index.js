@@ -22,6 +22,28 @@ const privateHeaders = {'Cache-Control':'no-store','X-Content-Type-Options':'nos
 const adminJson = (value,status=200) => Response.json(value,{status,headers:privateHeaders});
 const adminError = (error,status) => adminJson({error},status);
 
+const defaultLoginCopy = {title:'学生登录',description:'请输入自己的学号，继续上次练习或开始新试卷。',button:'进入考场'};
+const loginCopyLimits = {title:30,description:100,button:16};
+
+async function readLoginCopy(db, room) {
+  const value=await db.prepare('SELECT title,description,button FROM login_copy WHERE room=?').bind(room).first();
+  return {value:value ?? defaultLoginCopy};
+}
+
+async function saveLoginCopy(db, room, input) {
+  const value={};
+  for (const [field,limit] of Object.entries(loginCopyLimits)) {
+    const raw=input?.[field];
+    const text=typeof raw==='string' ? raw.trim() : '';
+    if (!text || text.length>limit) return adminError('invalid_request',400);
+    value[field]=text;
+  }
+  await db.prepare(`INSERT INTO login_copy(room,title,description,button) VALUES (?,?,?,?)
+    ON CONFLICT(room) DO UPDATE SET title=excluded.title,description=excluded.description,button=excluded.button`)
+    .bind(room,value.title,value.description,value.button).run();
+  return adminJson({value});
+}
+
 async function changeRoster(db, room, input) {
   const {operation,items}=input;
   if (!Array.isArray(items) || !items.length || !['enable','disable','remove','names'].includes(operation))
@@ -99,6 +121,8 @@ async function manage(request, db) {
   const room=input?.board==='class'?allowedRooms[0]:input?.board==='qa'?allowedRooms[1]:null;
   if (!room) return adminError('invalid_request',400);
 
+  if (input.action==='loginCopyGet') return adminJson(await readLoginCopy(db,room));
+  if (input.action==='loginCopySave') return saveLoginCopy(db,room,input.value);
   if (input.action==='hydrate') return hydrate(db,room,input);
   if (input.action==='changeRoster') return changeRoster(db,room,input);
   if (input.action==='list') {
@@ -319,8 +343,14 @@ export default {
       ...privateHeaders,'Content-Type':'text/html; charset=utf-8','X-Frame-Options':'DENY',
       'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
     }});
-    if (request.method !== 'POST' || !path.endsWith('/api/ranking')) return json({error:'route'}, 404);
-    const response = await ranking(request, env);
+    let response;
+    if (request.method==='GET' && path.endsWith('/api/login-copy')) {
+      response=json(await readLoginCopy(env.DB,allowedRooms[0]));
+    } else if (request.method==='POST' && path.endsWith('/api/ranking')) {
+      response=await ranking(request,env);
+    } else {
+      return json({error:'route'},404);
+    }
     response.headers.set('Vary','Origin');
     if (request.headers.get('Origin') === 'null') response.headers.set('Access-Control-Allow-Origin','null');
     return response;

@@ -28,7 +28,7 @@ body {
 body.nav-open { overflow: hidden; }
 h1, h2, h3, p, figure, dl, dd { margin: 0; }
 h1, h2, h3 { line-height: 1.25; }
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button {
   display: inline-flex;
   align-items: center;
@@ -48,11 +48,11 @@ button {
 }
 button:hover { border-color: #b4c6ce; background-color: #f3f7f8; }
 button:disabled { cursor: default; opacity: .52; }
-button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 3px;
 }
-input, select {
+input, select, textarea {
   min-width: 0;
   min-height: 40px;
   padding: 8px 11px;
@@ -239,6 +239,16 @@ button.quiet:hover { border-color: transparent; background: var(--teal-soft); }
 .metric-unit { margin-left: 4px; color: var(--subtle); font-size: .82rem; font-weight: 500; }
 .overview-grid { display: grid; grid-template-columns: minmax(0,1.45fr) minmax(265px,1fr); gap: 16px; margin-top: 19px; }
 .panel { overflow: hidden; }
+.copy-panel { max-width: 760px; }
+.copy-panel form { padding: clamp(18px,3vw,32px); }
+.copy-panel fieldset { display: grid; gap: 22px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.copy-field { display: grid; gap: 7px; }
+.copy-field label { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: .91rem; font-weight: 650; }
+.copy-field small { color: var(--muted); font-size: .77rem; font-weight: 400; }
+.copy-field input, .copy-field textarea { width: 100%; font-size: 1rem; }
+.copy-field textarea { resize: vertical; min-height: 84px; }
+.copy-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 15px; margin-top: 24px; }
+.copy-actions .notice { margin: 0; }
 .panel-heading { justify-content: space-between; gap: 13px; padding: 19px 22px; flex-wrap: wrap; }
 .panel-heading h2 { font-size: 1.04rem; letter-spacing: -.018em; font-weight: 670; }
 .panel-heading small, .panel-heading p, .panel-meta { color: var(--muted); font-size: .8rem; }

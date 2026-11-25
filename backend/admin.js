@@ -13,7 +13,8 @@ const outcomeLabels = {correct:'正确', partScore:'部分得分', incorrect:'�
 const pages = {
   overview: ['管理概览', '查看班级交卷进度和成绩分布。'],
   roster: ['学号名单', '核对真实姓名，勾选学号可批量管理。'],
-  ranking: ['成绩排名', '查看全班作答进度，按最近答卷状态筛选。']
+  ranking: ['成绩排名', '查看全班作答进度，按最近答卷状态筛选。'],
+  loginCopy: ['登录页文案', '保存后，同学下次打开学生登录页时会看到新文字。']
 };
 const clientMessages = {
   unauthorized: '管理口令无效，请重新输入。',
@@ -75,7 +76,7 @@ function mobileMenu(open) {
   el('menuToggle').setAttribute('aria-expanded', String(open));
 }
 function showView(view) {
-  if (!Object.hasOwn(pages, view)) view = 'overview';
+  if (!Object.hasOwn(pages, view) || (view === 'loginCopy' && board !== 'class')) view = 'overview';
   clearInterval(rankTimer);
   if (view === 'ranking') rankTimer = setInterval(pollRanking, 15000);
   else if (session?.reading?.rankingOnly) {
@@ -83,6 +84,8 @@ function showView(view) {
     setRefreshBusy(false);
   }
   for (const id of Object.keys(pages)) el(id).hidden = id !== view;
+  document.querySelector('.page-actions').hidden = view === 'loginCopy';
+  el('message').hidden = view === 'loginCopy';
   document.querySelectorAll('#sidebar [data-view]').forEach(button => {
     const active = button.dataset.view === view;
     button.classList.toggle('active', active);
@@ -93,6 +96,7 @@ function showView(view) {
   setText('crumb', pages[view][0]);
   setText('sectionHint', pages[view][1]);
   mobileMenu(false);
+  if (view === 'loginCopy' && !session.hasLoginCopy) void syncLoginCopy();
 }
 function navigate(view) {
   if (!session) return;
@@ -120,6 +124,55 @@ function setPasswordVisible(visible) {
 }
 el('showPassword').addEventListener('click', () => setPasswordVisible(el('password').type === 'password'));
 setText('classLabel', board === 'qa' ? '测试班级' : '通信2491–2494');
+el('loginCopyNav').hidden = board !== 'class';
+
+function copyStatus(message, error = false) {
+  setText('copyStatus', message);
+  el('copyStatus').classList.toggle('error', error);
+}
+async function syncLoginCopy(value) {
+  const owner = session;
+  if (!owner || owner.copyBusy || board !== 'class') return;
+  owner.copyBusy = true;
+  el('loginCopyFields').disabled = true;
+  el('copySave').disabled = true;
+  el('copyRetry').hidden = true;
+  copyStatus(value ? '正在保存…' : '正在读取文案…');
+  try {
+    const data = await api(value ? {action:'loginCopySave', value} : {action:'loginCopyGet'}, owner.token);
+    if (session !== owner) return;
+    for (const field of el('loginCopyFields').elements) field.value = data.value[field.name];
+    owner.hasLoginCopy = true;
+    copyStatus(value ? '已保存，学生登录页已更新。' : '');
+  } catch (error) {
+    if (session !== owner) return;
+    if (error.code === 'unauthorized') { logout(error.message); return; }
+    copyStatus(error.code ? error.message : value ? '保存失败，请检查网络后重试。' : '未能读取文案，请重试。', true);
+    el('copyRetry').hidden = !!owner.hasLoginCopy;
+  } finally {
+    if (session === owner) {
+      owner.copyBusy = false;
+      el('loginCopyFields').disabled = !owner.hasLoginCopy;
+      el('copySave').disabled = !owner.hasLoginCopy;
+    }
+  }
+}
+el('copyRetry').addEventListener('click', () => syncLoginCopy());
+el('loginCopyForm').addEventListener('input', () => copyStatus(''));
+el('loginCopyForm').addEventListener('submit', event => {
+  event.preventDefault();
+  if (!session?.hasLoginCopy) return;
+  const value = {};
+  for (const field of el('loginCopyFields').elements) {
+    value[field.name] = field.value.trim();
+    if (!value[field.name]) {
+      copyStatus('请填写' + field.labels[0].firstChild.textContent.trim() + '。', true);
+      field.focus();
+      return;
+    }
+  }
+  void syncLoginCopy(value);
+});
 
 function matches(row, needle) {
   return [row.number, row.realName, row.name].some(value => String(value ?? '').toLowerCase().includes(needle));
@@ -440,6 +493,11 @@ function logout(message = '') {
   resetEditor();
   setSaving(false);
   setRefreshBusy(false);
+  el('loginCopyForm').reset();
+  el('loginCopyFields').disabled = true;
+  el('copySave').disabled = true;
+  el('copyRetry').hidden = true;
+  copyStatus('');
   for (const id of ['members', 'rankRows', 'leaders', 'distribution']) el(id).replaceChildren();
   for (const id of ['metricActive', 'metricSubmitted', 'metricAverage', 'metricHigh', 'partSubmitted', 'partMissing',
     'partPending', 'participationPercent', 'updatedAt', 'counts', 'resultCount', 'rankResultCount', 'pageInfo',
@@ -476,8 +534,9 @@ el('loginForm').addEventListener('submit', async event => {
     notify(mappingNotice(data));
     el('loginPanel').hidden = true;
     el('workspace').hidden = false;
-    history.replaceState(null, '', '#overview');
-    showView('overview');
+    const view = location.hash === '#loginCopy' && board === 'class' ? 'loginCopy' : 'overview';
+    history.replaceState(null, '', '#' + view);
+    showView(view);
     el('pageTitle').focus();
   } catch (error) {
     setText('loginError', error.code ? error.message : '无法连接管理服务，请检查网络后重试。');

@@ -40,6 +40,7 @@
       <button type="button" class="nav-item" data-view="overview"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>管理概览</span></button>
       <button type="button" class="nav-item" data-view="roster"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20v-2a4 4 0 0 1 4-4h3a4 4 0 0 1 4 4v2"/><circle cx="8.5" cy="7" r="3.5"/><path d="M16 4.2a3.5 3.5 0 0 1 0 6.6M17 14a4 4 0 0 1 4 4v2"/></svg><span>学号名单</span></button>
       <button type="button" class="nav-item" data-view="ranking"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 16V9m6 7V4m6 12v-5"/></svg><span>成绩排名</span></button>
+      <button type="button" class="nav-item" id="loginCopyNav" data-view="loginCopy"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18m-13 5h6m-6 3h4"/></svg><span>登录页文案</span></button>
     </nav>
     <div class="account-block"><span class="account-avatar"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg></span><span class="account-name">管理员</span><button id="logout" type="button" class="icon-button" aria-label="退出管理" title="退出管理"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5m5-12 4 4-4 4m-7-4h11"/></svg></button></div>
   </aside>
@@ -96,6 +97,20 @@
         <div class="table-wrap"><table aria-label="班级成绩排名"><thead><tr><th scope="col">名次</th><th scope="col">学号</th><th scope="col">真实姓名</th><th scope="col">显示名</th><th scope="col">最高分</th><th scope="col">最近答卷状态</th><th scope="col">答题进度</th></tr></thead><tbody id="rankRows"></tbody></table></div>
         <p id="rankEmpty" class="empty" hidden></p>
         <div class="pagination"><span id="rankResultCount"></span><div class="pager-controls"><button id="rankPrev" type="button" aria-label="成绩上一页">上一页</button><span id="rankPageInfo"></span><button id="rankNext" type="button" aria-label="成绩下一页">下一页</button></div></div>
+      </section>
+      <section id="loginCopy" class="panel copy-panel" hidden aria-label="登录页文案">
+        <form id="loginCopyForm">
+          <fieldset id="loginCopyFields" disabled>
+            <div class="copy-field"><label for="copyTitle">页面标题 <small>最多 30 字</small></label><input id="copyTitle" name="title" required maxlength="30"></div>
+            <div class="copy-field"><label for="copyDescription">登录说明 <small>最多 100 字</small></label><textarea id="copyDescription" name="description" rows="3" required maxlength="100"></textarea></div>
+            <div class="copy-field"><label for="copyButton">按钮文字 <small>最多 16 字</small></label><input id="copyButton" name="button" required maxlength="16"></div>
+          </fieldset>
+          <div class="copy-actions">
+            <button id="copySave" class="primary" type="submit" disabled>保存文案</button>
+            <button id="copyRetry" class="secondary" type="button" hidden>重新读取</button>
+            <p id="copyStatus" class="notice" role="status"></p>
+          </div>
+        </form>
       </section>
     </main>
   </div>
