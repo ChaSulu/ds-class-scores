@@ -60,7 +60,8 @@ async function manage(request, db) {
   if (input.action==='hydrate') return hydrate(db,room,input);
   if (input.action==='list') {
     const {results}=await db.prepare(`SELECT r.number,r.active,r.display_name AS displayName,p.nickname AS submittedName,
-      COALESCE(r.display_name,p.nickname) AS name,p.total,p.pending
+      COALESCE(r.display_name,p.nickname) AS name,p.total,p.pending,
+      ROW_NUMBER() OVER (ORDER BY p.ended,r.student) AS tieOrder
       FROM roster r LEFT JOIN best_papers p ON p.room=r.room AND p.student=r.student
       WHERE r.room=? ORDER BY r.number IS NULL,r.number`).bind(room).all();
     return adminJson({rows:results.map(row=>({...row,active:!!row.active})),unmapped:results.filter(r=>r.number===null).length});

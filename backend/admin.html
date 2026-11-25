@@ -5,220 +5,97 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
-<title>名单管理 · 数据结构模拟考</title>
-<style>
-:root{color-scheme:light;--ink:#24354a;--muted:#586a7b;--line:#dce3ea;--blue:#1768ad;--blue-dark:#10528d;--canvas:#f2f5f8;--danger:#a0322b}
-*{box-sizing:border-box}
-body{margin:0;color:var(--ink);background:var(--canvas);font:16px/1.55 "HarmonyOS Sans SC","Microsoft YaHei UI",system-ui,-apple-system,sans-serif}
-h1,h2,p{margin:0}h1{font-size:1.55rem;letter-spacing:.01em}h2{font-size:1.2rem}
-header{background:#fff;border-top:3px solid var(--blue);border-bottom:1px solid var(--line)}
-.top{max-width:1120px;min-height:58px;margin:auto;padding:8px 24px;display:flex;align-items:center;gap:14px}
-.brand{font-weight:650}.context{padding-left:14px;border-left:1px solid var(--line);color:var(--muted);font-size:.9rem}
-.top button{margin-left:auto}
-main{max-width:1120px;margin:30px auto;padding:0 24px}
-.card{border:1px solid var(--line);border-radius:8px;background:#fff}
-.login{max-width:410px;margin:clamp(40px,11vh,110px) auto;padding:28px}
-.login form{margin-top:20px}.login .primary{width:100%;margin-top:20px}
-label{font-size:.9rem;font-weight:600}
-input,select,button{font:inherit}
-input,select{border:1px solid #aebccc;border-radius:5px;background:#fff;color:var(--ink);min-height:40px;max-width:100%;padding:6px 11px}
-label+input{display:block;width:100%;margin-top:6px}
-button{cursor:pointer;min-height:38px;padding:6px 14px;line-height:1.35;border-radius:5px;border:1px solid var(--line);background:#fff;color:var(--ink)}
-button:hover{background:#f0f5fa}button.primary{color:white;background:var(--blue);border-color:var(--blue);font-weight:600}button.primary:hover{background:var(--blue-dark)}
-button.destructive{color:white;background:var(--danger);border-color:var(--danger)}button:disabled{opacity:.55;cursor:default}
-:focus-visible{outline:3px solid #79b8f2;outline-offset:2px}
-[hidden]{display:none!important}
-.heading,.tools,.dialog-actions,.actions{display:flex;align-items:center;gap:10px}
-.heading{justify-content:space-between;align-items:flex-end;margin-bottom:18px}
-.counts,.quiet{font-size:.9rem;color:var(--muted)}.counts{margin-top:3px}
-.tools{padding:14px 18px;flex-wrap:wrap}.tools input{width:min(300px,100%)}.tools select{font-size:.9rem}.tools button{margin-left:auto}
-.table-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;text-align:left;font-size:.93rem}th,td{padding:11px 18px;border-top:1px solid var(--line);vertical-align:middle}th{background:#f6f8fa;color:var(--muted);font-size:.85rem;font-weight:600}
-td.number{font-family:ui-monospace,Consolas,monospace;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}td.name{overflow-wrap:anywhere}td.score{font-variant-numeric:tabular-nums}
-tbody tr:hover{background:#f8fbfd}
-.actions{gap:14px;white-space:nowrap}.actions button{border:0;background:transparent;padding:4px 0;min-height:30px;color:var(--blue);font-size:.9rem}.actions button:hover{text-decoration:underline}.actions .pause{color:var(--danger)}
-.state{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-size:.88rem}
-.state::before{content:"";width:7px;height:7px;border-radius:50%;background:#21755f}.state.off::before{background:#8895a2}
-.empty{padding:32px 18px;text-align:center;color:var(--muted);border-top:1px solid var(--line)}
-.notice{margin:12px 0;color:var(--muted);font-size:.92rem;overflow-wrap:anywhere}.notice:empty{display:none}.error{color:var(--danger)}
-#loginError{margin-bottom:0}#resultCount{font-size:.87rem;padding:0 18px 12px;color:var(--muted)}
-dialog{padding:0;border:1px solid var(--line);border-radius:8px;width:min(430px,calc(100vw - 32px));color:var(--ink);box-shadow:0 14px 54px #16273b28}
-dialog::backdrop{background:#15273863}dialog form{padding:24px}
-#impact{margin:10px 0 16px;font-size:.94rem;color:var(--muted)}
-.dialog-actions{justify-content:flex-end;margin-top:22px}
-.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-@media(max-width:660px){
- .top{padding:6px 14px;gap:9px}.context{padding-left:9px;font-size:.83rem}.top button{padding:5px 8px;font-size:.85rem}
- main{padding:0 12px;margin:18px auto}.heading{align-items:center;margin-bottom:13px}h1{font-size:1.3rem}
- .login{padding:22px}.tools{padding:12px;gap:8px}.tools input{width:100%}
- table,tbody{display:block}thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
- tbody tr{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"number state" "name score" "actions actions";gap:6px 12px;border-top:1px solid var(--line);padding:12px}
- td{border:0;padding:0}.number{grid-area:number;font-weight:650}.name{grid-area:name}.score{grid-area:score;text-align:right}
- .name::before,.score::before{content:attr(data-label);display:block;font-size:.78rem;color:var(--muted)}
- .status{grid-area:state;text-align:right}.operations{grid-area:actions}.actions{justify-content:flex-end;gap:20px}
-}
-</style>
+<title>教学管理后台 · 数据结构模拟考</title>
+<link rel="stylesheet" href="./admin.css">
 </head>
 <body>
-<header><div class="top"><span class="brand">数据结构模拟考</span><span class="context" id="context">后台管理</span><button id="logout" hidden>退出管理</button></div></header>
-<main>
-<section class="card login" id="loginPanel">
- <h1>管理员登录</h1>
- <form id="loginForm">
-  <label for="password">管理口令</label>
-  <input type="password" id="password" autocomplete="current-password" required>
-  <p class="notice error" id="loginError" role="alert"></p>
-  <button class="primary" type="submit" id="signIn">登录</button>
- </form>
-</section>
-<section id="roster" hidden>
- <div class="heading"><div><h1>学号名单</h1><p id="counts" class="counts"></p></div><button type="button" id="add" class="primary">新增学号</button></div>
- <p id="message" class="notice" role="status"></p>
- <div class="card">
-  <div class="tools">
-   <label class="visually-hidden" for="search">搜索学号或显示名</label>
-   <input type="search" id="search" placeholder="搜索学号或显示名" autocomplete="off">
-   <label class="visually-hidden" for="filter">按状态筛选</label>
-   <select id="filter"><option value="all">全部状态</option><option value="on">已启用</option><option value="off">已停用</option></select>
-   <button type="button" id="refresh">刷新名单</button>
-  </div>
-  <p id="resultCount" hidden></p>
-  <div class="table-wrap"><table aria-label="班级学号名单"><thead><tr><th scope="col">学号</th><th scope="col">显示名</th><th scope="col">最高分</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody id="members"></tbody></table></div>
-  <p id="empty" class="empty" hidden></p>
- </div>
-</section>
+<main id="loginPanel" class="login-screen">
+  <section class="login-art" aria-label="数据结构模拟考">
+    <div class="login-art-inner">
+      <div class="login-brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>数据结构模拟考</span></div>
+      <div class="login-heading"><h2>班级管理平台</h2></div>
+      <figure class="tree-art" role="img" aria-label="二叉搜索树中从根节点 8 到节点 6 的查找路径"><svg viewBox="0 0 510 256" fill="none" aria-hidden="true" focusable="false">
+ <g stroke="#4d7788" stroke-width="1.6"><path d="M255 39V59Q255 70 244 70H148Q137 70 137 81V100M255 59Q255 70 266 70H362Q373 70 373 81V100M137 122V149Q137 158 128 158H82Q73 158 73 167V190M137 149Q137 158 146 158H192Q201 158 201 167V190M373 122V149Q373 158 364 158H318Q309 158 309 167V190M373 149Q373 158 382 158H428Q437 158 437 167V190"/></g>
+ <path d="M255 53V59Q255 70 244 70H148Q137 70 137 81V99M137 130V149Q137 158 146 158H192Q201 158 201 167V188" stroke="#64d3c2" stroke-width="2.7"/>
+ <g stroke="#446577" fill="#1a3347" stroke-width="1.5"><rect x="231" y="10" width="48" height="43" rx="11" fill="#7cdfcd" stroke="#7cdfcd"/><rect x="114" y="93" width="46" height="41" rx="10" stroke="#68bfae"/><rect x="350" y="93" width="46" height="41" rx="10"/><rect x="53" y="185" width="40" height="38" rx="9"/><rect x="181" y="185" width="40" height="38" rx="9" fill="#2c605f" stroke="#7cdfcd"/><rect x="289" y="185" width="40" height="38" rx="9"/><rect x="417" y="185" width="40" height="38" rx="9"/></g>
+ <g fill="#e0ebed" font-family="Consolas,monospace" font-size="18" font-weight="600" text-anchor="middle"><text x="255" y="38" fill="#143541">8</text><text x="137" y="120">4</text><text x="373" y="120">12</text><text x="73" y="210">2</text><text x="201" y="210">6</text><text x="309" y="210">10</text><text x="437" y="210">14</text></g>
+</svg></figure>
+    </div>
+  </section>
+  <section class="login-form-side"><div class="login-box">
+    <h1>管理员登录</h1>
+    <p class="lead">使用管理口令访问班级名单与模拟考成绩。</p>
+    <form id="loginForm">
+      <label for="password">管理口令</label>
+      <div class="password-control"><input type="password" id="password" autocomplete="current-password" placeholder="输入管理口令" required><button type="button" id="showPassword" class="icon-button" aria-label="显示口令" aria-pressed="false"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.4-6.5 10-6.5S22 12 22 12s-3.4 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg></button></div>
+      <p id="loginError" class="notice error" role="alert"></p>
+      <button class="primary login-submit" type="submit" id="signIn">登录</button>
+    </form>
+  </div></section>
 </main>
+<div id="workspace" class="admin-shell" hidden>
+  <aside id="sidebar" class="sidebar" aria-label="管理侧栏">
+    <div class="side-brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><div class="brand-text"><strong>数据结构模拟考</strong><small>教学管理后台</small></div></div>
+    <nav class="side-nav" aria-label="后台主导航">
+      <button type="button" class="nav-item" data-view="overview"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>管理概览</span></button>
+      <button type="button" class="nav-item" data-view="roster"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20v-2a4 4 0 0 1 4-4h3a4 4 0 0 1 4 4v2"/><circle cx="8.5" cy="7" r="3.5"/><path d="M16 4.2a3.5 3.5 0 0 1 0 6.6M17 14a4 4 0 0 1 4 4v2"/></svg><span>学号名单</span></button>
+      <button type="button" class="nav-item" data-view="ranking"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 16V9m6 7V4m6 12v-5"/></svg><span>成绩排名</span></button>
+    </nav>
+    <div class="account-block"><span class="account-avatar"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg></span><span class="account-name">管理员</span><button id="logout" type="button" class="icon-button" aria-label="退出管理" title="退出管理"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5m5-12 4 4-4 4m-7-4h11"/></svg></button></div>
+  </aside>
+  <button type="button" id="navBackdrop" class="nav-backdrop" aria-label="关闭导航"></button>
+  <div class="main-shell">
+    <header class="topbar">
+      <button type="button" id="menuToggle" class="icon-button" aria-label="打开导航" aria-expanded="false" aria-controls="sidebar"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+      <div class="breadcrumbs"><span>教学管理后台</span><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="m10 6 6 6-6 6"/></svg><span id="crumb">管理概览</span></div>
+      <span class="class-chip"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 5l9 4.5-9 4.5-9-4.5Zm3 2v4c3.2 3.2 8.8 3.2 12 0v-4M21 10v6"/></svg><span id="classLabel">通信2491–2494</span></span>
+    </header>
+    <main class="content">
+      <section class="page-head"><div class="page-title"><h1 id="pageTitle" tabindex="-1">管理概览</h1><p id="sectionHint"></p></div>
+        <div class="page-actions"><span id="updatedAt" class="quiet"></span><button type="button" class="secondary refresh-button" id="refresh"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10a8 8 0 0 0-13.8-4.5L3 9m0-5v5h5m-4 5a8 8 0 0 0 13.8 4.5L21 15m0 5v-5h-5"/></svg><span>刷新数据</span></button></div>
+      </section>
+      <p id="message" class="notice" role="status"></p>
+      <section id="overview" aria-label="管理概览">
+        <div class="metric-grid">
+          <article class="metric-card metric-teal"><div class="metric-top"><span class="metric-label">启用学号</span><span class="metric-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20v-2a4 4 0 0 1 4-4h3a4 4 0 0 1 4 4v2"/><circle cx="8.5" cy="7" r="3.5"/><path d="M16 4.2a3.5 3.5 0 0 1 0 6.6M17 14a4 4 0 0 1 4 4v2"/></svg></span></div><div class="metric-reading"><strong class="metric-value" id="metricActive">—</strong><span class="metric-unit">人</span></div></article>
+          <article class="metric-card metric-blue"><div class="metric-top"><span class="metric-label">已交卷</span><span class="metric-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="16" rx="2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-5"/></svg></span></div><div class="metric-reading"><strong class="metric-value" id="metricSubmitted">—</strong><span class="metric-unit">人</span></div></article>
+          <article class="metric-card metric-violet"><div class="metric-top"><span class="metric-label">平均分</span><span class="metric-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 17a9 9 0 1 1 17.2 0H3.4Zm8.6-3 4-5"/></svg></span></div><div class="metric-reading"><strong class="metric-value" id="metricAverage">—</strong><span class="metric-unit">分</span></div></article>
+          <article class="metric-card metric-amber"><div class="metric-top"><span class="metric-label">最高分</span><span class="metric-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0V4Zm8 1h3v2a4 4 0 0 1-4 4M8 5H5v2a4 4 0 0 0 4 4m3 2v5m-4 2h8"/></svg></span></div><div class="metric-reading"><strong class="metric-value" id="metricHigh">—</strong><span class="metric-unit">分</span></div></article>
+        </div>
+        <div class="overview-grid">
+          <section class="panel score-panel"><div class="panel-heading"><div><h2>成绩分布</h2><p>按已评分学号的最高分统计</p></div><span class="chart-unit">人数</span></div><div class="chart" id="distribution"></div></section>
+          <section class="panel participation-panel"><div class="panel-heading"><div><h2>交卷进度</h2><p>当前启用学号的交卷情况</p></div></div>
+            <div class="participation-body"><div class="ring" id="participationRing"><div class="ring-center"><strong id="participationPercent">—</strong><span>交卷率</span></div></div>
+              <dl class="legend-list"><div class="legend-row"><dt><i class="dot submitted"></i>已交卷</dt><dd id="partSubmitted">—</dd></div><div class="legend-row"><dt><i class="dot missing"></i>未交卷</dt><dd id="partMissing">—</dd></div><div class="legend-row"><dt><i class="dot pending"></i>其中待自评</dt><dd id="partPending">—</dd></div></dl>
+            </div>
+          </section>
+        </div>
+        <section class="panel leaders-panel"><div class="panel-heading"><h2>成绩前五名</h2><button class="quiet text-link" type="button" data-view="ranking">全部排名 <svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="m10 6 6 6-6 6"/></svg></button></div><ol id="leaders" class="leader-list"></ol></section>
+      </section>
+      <section id="roster" class="panel" hidden aria-label="学号名单">
+        <div class="panel-heading"><div><h2>班级名单</h2><p id="counts"></p></div><button id="add" class="primary" type="button"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>新增学号</span></button></div>
+        <div class="panel-tools"><label class="search-box"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span class="visually-hidden">搜索学号或显示名</span><input type="search" id="search" placeholder="搜索学号或显示名" autocomplete="off"></label><label class="select-control"><span class="visually-hidden">按启用状态筛选</span><select id="filter"><option value="all">全部状态</option><option value="on">已启用</option><option value="off">已停用</option></select></label></div>
+        <div class="table-wrap"><table aria-label="班级学号名单"><thead><tr><th scope="col">学号</th><th scope="col">显示名</th><th scope="col">最高分</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody id="members"></tbody></table></div>
+        <p class="empty" id="empty" hidden></p>
+        <div class="pagination"><span id="resultCount"></span><div class="pager-controls"><label class="select-control"><span class="visually-hidden">每页行数</span><select id="pageSize"><option value="15">15 条 / 页</option><option value="30">30 条 / 页</option><option value="50">50 条 / 页</option></select></label><button id="prevPage" type="button" aria-label="名单上一页">上一页</button><span id="pageInfo"></span><button id="nextPage" type="button" aria-label="名单下一页">下一页</button></div></div>
+      </section>
+      <section id="ranking" class="panel" hidden aria-label="成绩排名">
+        <div class="panel-heading"><div><h2>班级成绩榜</h2><p>每个启用学号取已评分的最高分，同分并列。</p></div></div>
+        <div class="panel-tools"><label class="search-box"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span class="visually-hidden">搜索学号或显示名</span><input type="search" id="rankSearch" placeholder="搜索学号或显示名" autocomplete="off"></label><label class="select-control"><span class="visually-hidden">按评分状态筛选</span><select id="rankFilter"><option value="all">全部成绩</option><option value="graded">已评分</option><option value="pending">待自评</option></select></label></div>
+        <div class="table-wrap"><table aria-label="班级成绩排名"><thead><tr><th scope="col">名次</th><th scope="col">学号</th><th scope="col">显示名</th><th scope="col">最高分</th><th scope="col">评分状态</th></tr></thead><tbody id="rankRows"></tbody></table></div>
+        <p id="rankEmpty" class="empty" hidden></p>
+        <div class="pagination"><span id="rankResultCount"></span><div class="pager-controls"><button id="rankPrev" type="button" aria-label="成绩上一页">上一页</button><span id="rankPageInfo"></span><button id="rankNext" type="button" aria-label="成绩下一页">下一页</button></div></div>
+      </section>
+    </main>
+  </div>
+</div>
 <dialog id="editor" aria-labelledby="editTitle">
- <form id="editForm">
-  <h2 id="editTitle"></h2><p id="impact"></p>
-  <div id="numberFields"><label id="numberLabel" for="number">学号</label><input id="number" maxlength="32" autocapitalize="characters" autocomplete="off" spellcheck="false"></div>
-  <p id="editError" class="notice error" role="alert"></p>
-  <div class="dialog-actions"><button id="cancel" type="button">取消</button><button id="save" type="submit" class="primary">保存</button></div>
- </form>
+  <form id="editForm"><h2 id="editTitle"></h2><p id="impact"></p>
+    <div id="numberFields"><label id="numberLabel" for="number">学号</label><input id="number" maxlength="32" autocapitalize="characters" autocomplete="off" spellcheck="false"></div>
+    <p id="editError" class="notice error" role="alert"></p>
+    <div class="dialog-actions"><button class="secondary" id="cancel" type="button">取消</button><button class="primary" id="save" type="submit">保存</button></div>
+  </form>
 </dialog>
-<script>
-'use strict';
-const el=id=>document.getElementById(id);
-const board=new URLSearchParams(location.search).get('board')==='qa'?'qa':'class';
-if(board==='qa') el('context').textContent='测试名单管理';
-const endpoint=location.pathname.replace(/\/$/,'')+'/api';
-let key='', members=[], currentEdit=null, writing=false, reading=false;
-const clientMessages={
- unauthorized:'管理口令无效，请重新输入。', duplicate_number:'该学号已在名单中，请核对后重试。',
- number_changed:'这条记录已被其他操作更新，请刷新名单后重试。', not_found:'找不到这个学号，请刷新名单。',
- roster_unready:'名单尚未准备好，请稍后刷新。',invalid_number:'请填写正确的学号，可用字母、数字、短横线和下划线。',
- invalid_request:'请求内容有误，请核对后重试。', admin_unavailable:'管理服务暂时不可用，请稍后重试。'
-};
-async function api(body,token=key) {
- const response=await fetch(endpoint,{method:'POST',credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',
-  headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({board,...body}),signal:AbortSignal.timeout(20000)});
- const data=await response.json();
- if(!response.ok || data.error){const err=new Error(clientMessages[data.error]||'管理服务未能完成请求。');err.code=data.error;throw err;}
- return data;
-}
-function notify(text,error=false){el('message').textContent=text;el('message').classList.toggle('error',error);}
-function logout(message=''){
- key='';members=[];currentEdit=null;
- if(el('editor').open) el('editor').close();
- el('members').replaceChildren();el('counts').textContent='';el('search').value='';el('filter').value='all';el('number').value='';notify('');
- el('logout').hidden=true;el('roster').hidden=true;el('loginPanel').hidden=false;el('password').value='';el('loginError').textContent=message;el('password').focus();
-}
-function describe(error,fallback){return error.code?error.message:fallback;}
-function render(){
- const needle=el('search').value.trim().toLocaleLowerCase(), filter=el('filter').value;
- const active=members.filter(m=>m.active).length;
- el('counts').textContent=members.length+' 个学号 · '+active+' 个启用 · '+(members.length-active)+' 个停用';
- const visible=members.filter(m=>(filter==='all'||m.active===(filter==='on'))&&[m.number,m.name].some(v=>String(v??'').toLocaleLowerCase().includes(needle)));
- el('resultCount').hidden=!needle&&filter==='all';el('resultCount').textContent='匹配 '+visible.length+' 个学号';
- const body=document.createDocumentFragment();
- for(const item of visible){
-  const row=document.createElement('tr');
-  function cell(cls,txt){const c=row.insertCell();c.className=cls;c.textContent=txt;return c;}
-  cell('number',item.number??'待补全');
-  cell('name',item.name||'—').dataset.label='显示名';
-  cell('score',item.total==null?'—':String(item.total)+(item.pending?'（待自评）':'')).dataset.label='最高分';
-  const state=document.createElement('span');state.className='state'+(item.active?'':' off');state.textContent=item.active?'已启用':'已停用';cell('status','').append(state);
-  const actions=document.createElement('div');actions.className='actions';cell('operations','').append(actions);
-  if(item.number){for(const op of ['rename','alias',item.active?'pause':'resume']){
-   const b=document.createElement('button');b.type='button';b.textContent={rename:'改号',alias:'改显示名',pause:'停用',resume:'恢复'}[op];
-   b.setAttribute('aria-label',b.textContent+' '+item.number);if(op==='pause') b.className='pause';
-   b.addEventListener('click',()=>edit(op,item));actions.append(b);
-  }}
-  body.append(row);
- }
- el('members').replaceChildren(body);
- el('empty').hidden=visible.length!==0;el('empty').textContent=members.length?'没有匹配的学号':'名单为空';
-}
-function adopt(data){
- members=data.rows.slice().sort((a,b)=>String(a.number??'').localeCompare(String(b.number??''),'zh-CN',{numeric:true}));
- render();
- if(data.unmapped) notify('有 '+data.unmapped+' 个学号待补全，补全后即可编辑。');
-}
-el('loginForm').addEventListener('submit',async e=>{
- e.preventDefault();if(el('signIn').disabled)return;
- const candidate=el('password').value.trim();if(!candidate)return;
- el('signIn').disabled=true;el('signIn').textContent='登录中…';el('loginError').textContent='';
- try{
-  const data=await api({action:'list'},candidate);adopt(data);key=candidate;
-  el('password').value='';el('loginPanel').hidden=true;el('roster').hidden=false;el('logout').hidden=false;el('search').focus();
- }catch(err){el('loginError').textContent=describe(err,'无法连接管理服务，请检查网络后重试。');}
- finally{el('signIn').disabled=false;el('signIn').textContent='登录';}
-});
-async function refresh(success=''){
- if(reading || !key)return;
- const token=key;reading=true;el('refresh').disabled=true;el('refresh').textContent='刷新中…';
- try{const data=await api({action:'list'});if(key!==token)return;notify(success);adopt(data);}
- catch(err){if(key!==token)return;if(err.code==='unauthorized')logout(err.message);
-  else notify((success?success+' ':'')+'名单刷新失败，请重试。',true);}
- finally{reading=false;el('refresh').disabled=false;el('refresh').textContent='刷新名单';}
-}
-el('logout').addEventListener('click',()=>logout());
-el('refresh').addEventListener('click',()=>refresh());
-el('search').addEventListener('input',render);el('filter').addEventListener('change',render);
-el('add').addEventListener('click',()=>edit('add'));
-function edit(op,item={}){
- if(writing||reading)return;
- currentEdit={op,item};const id=item.number, text={
-  add:['新增学号','添加后，该学号即可交卷并参与班级排名。','学号','添加'],
-  rename:['更正学号','原学号 '+id+' 的历史成绩会归入新学号，原学号将停止使用。','新学号','保存更正'],
-  alias:['修改榜单显示名','为 '+id+' 设置榜上显示名。留空会恢复最高分答卷填写的名字。','榜单显示名（选填）','保存显示名'],
-  pause:['停用学号','停用 '+id+' 后，该学号无法交卷，成绩从班级排名隐藏。历史成绩会保留。','','确认停用'],
-  resume:['恢复学号','恢复 '+id+' 后，该学号可以继续交卷，已有成绩重新参加排名。','','确认恢复']
- }[op];
- const needsInput=op==='add'||op==='rename'||op==='alias';el('editTitle').textContent=text[0];el('impact').textContent=text[1];
- el('numberLabel').textContent=text[2];el('numberFields').hidden=!needsInput;el('number').required=needsInput&&op!=='alias';
- el('number').maxLength=op==='alias'?40:32;el('number').autocapitalize=op==='alias'?'off':'characters';
- el('number').placeholder=op==='alias'?(item.submittedName||'留空使用答卷显示名'):'';
- el('number').value=op==='rename'?id:op==='alias'?(item.displayName||''):'';
- el('editError').textContent='';el('save').textContent=text[3];el('save').className=op==='pause'?'destructive':'primary';
- el('editor').showModal();if(needsInput){el('number').focus();el('number').select();}else el('cancel').focus();
-}
-el('cancel').addEventListener('click',()=>el('editor').close());
-el('editor').addEventListener('cancel',e=>{if(writing)e.preventDefault();});
-el('editor').addEventListener('close',()=>{currentEdit=null;el('number').value='';});
-el('editForm').addEventListener('submit',async e=>{
- e.preventDefault();if(!currentEdit||writing)return;
- const {op,item}=currentEdit, num=el('number').value.normalize('NFKC').trim().toUpperCase();
- if(op==='add'||op==='rename'){
-  if(!/^[A-Z0-9][A-Z0-9_-]{0,31}$/.test(num)){el('editError').textContent=clientMessages.invalid_number;el('number').focus();return;}
-  if(op==='rename'&&num===item.number){el('editError').textContent='请填写新的学号。';el('number').focus();return;}
- }
- const displayName=el('number').value.trim();
- let change,complete;
- if(op==='add'){change={action:'add',number:num};complete='已添加 '+num+'。';}
- else if(op==='rename'){change={action:'rename',number:item.number,newNumber:num};complete='已将 '+item.number+' 更正为 '+num+'。';}
- else if(op==='alias'){change={action:'setDisplayName',number:item.number,displayName};complete=displayName?'已更新榜单显示名。':'已恢复答卷显示名。';}
- else {change={action:'setActive',number:item.number,active:op==='resume'};complete=(op==='pause'?'已停用 ':'已恢复 ')+item.number+'。';}
- writing=true;el('save').disabled=true;el('cancel').disabled=true;el('number').disabled=true;el('editError').textContent='';
- try{
-  const result=await api(change);
-  if(result.ok!==true)throw new Error('未收到保存结果');
-  el('editor').close();await refresh(complete);
- }catch(err){
-  if(err.code==='unauthorized')logout(err.message);
-  else el('editError').textContent=describe(err,'未能确认保存结果，请关闭此窗口并刷新名单核对。');
- }finally{writing=false;el('save').disabled=false;el('cancel').disabled=false;el('number').disabled=false;}
-});
-</script>
+<script src="./admin.js"></script>
 </body>
 </html>
